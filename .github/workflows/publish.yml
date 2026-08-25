@@ -2,7 +2,7 @@
 #
 # It needs a trusted publisher for this repository on PyPI
 # (https://pypi.org/manage/account/publishing/) pointing at this
-# workflow file and the `pypi` environment. See #10.
+# workflow file and the `pypi` environment. See #7.
 name: Publish to PyPI
 
 on:
@@ -27,7 +27,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
 
       - run: uv build
 

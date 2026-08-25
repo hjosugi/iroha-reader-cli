@@ -265,7 +265,7 @@ espeak-ng. See [CONTRIBUTING.md](CONTRIBUTING.md).
   line such as `VOICEVOX:ずんだもん`, and check the terms of the
   character you used.
 - PDF extraction is basic. Multi-column layouts can come out in the
-  wrong order ([#4](https://github.com/hjosugi/iroha-reader-cli/issues/4)).
+  wrong order ([#3](https://github.com/hjosugi/iroha-reader-cli/issues/3)).
 - Timestamps are line level. Word level (Enhanced LRC) is
   [#1](https://github.com/hjosugi/iroha-reader-cli/issues/1).
 - Piper has no official Japanese voice, so Japanese stays on Open

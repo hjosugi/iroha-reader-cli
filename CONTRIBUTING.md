@@ -63,4 +63,4 @@ Two rules keep it that way:
 ## Commits
 
 Short summary line in the imperative, a blank line, then why the
-change was needed. Reference issues as `#12`.
+change was needed. Reference issues as #3.
