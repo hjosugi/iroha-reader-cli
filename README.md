@@ -261,6 +261,24 @@ iroha-reader-cli notes.md --dict readings.tsv
 
 Lines starting with `#` are comments. Longer words win.
 
+## Shell completion
+
+The scripts are generated from the parser, so they cannot go stale:
+
+```sh
+# fish
+irh --completion fish > ~/.config/fish/completions/irh.fish
+
+# bash
+irh --completion bash | sudo tee /etc/bash_completion.d/irh
+
+# zsh (with ~/.zfunc in $fpath)
+irh --completion zsh > ~/.zfunc/_irh
+```
+
+`irh --engine <TAB>` then offers the engines, `--subs <TAB>` the
+subtitle formats, and everything else completes file names.
+
 ## Config file
 
 Save your favourite settings once, in
@@ -308,6 +326,7 @@ are.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `--completion` | none | print a completion script: `bash`, `zsh`, `fish` |
 | `--serve` | off | open the local web page instead of converting a file |
 | `--port` | `8765` | port for `--serve` |
 | `--host` | `127.0.0.1` | address for `--serve` |

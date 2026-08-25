@@ -5,6 +5,12 @@ and this project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `--completion {bash,zsh,fish}` prints a completion script. It is
+  generated from the argparse parser itself, so a new flag is
+  completable the day it is added.
+
 ### Fixed
 
 - Sentences no longer break at an abbreviation. `Dr. Smith went home.`

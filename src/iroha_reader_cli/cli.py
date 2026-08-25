@@ -18,6 +18,7 @@ from . import (
     __version__,
     audio,
     cache,
+    completion,
     config,
     engines,
     extract,
@@ -167,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="print the lines and exit, no audio")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="no progress output, errors only")
+    p.add_argument("--completion", choices=list(completion.SHELLS), default=None,
+                   help="print a completion script for this shell and exit")
     p.add_argument("-V", "--version", action="version",
                    version=f"{PROG} {__version__}")  # always the full name
 
@@ -333,6 +336,10 @@ def run(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     reporter = Reporter(quiet=args.quiet)
     settings = EngineSettings.from_namespace(args)
+
+    if args.completion:
+        print(completion.script(args.completion, build_parser(), prog_name()), end="")
+        return EXIT_OK
 
     if args.list_speakers:
         speakers.list_speakers(settings)
