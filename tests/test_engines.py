@@ -1,0 +1,90 @@
+"""Engine settings and the auto choice."""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+from pathlib import Path
+
+import pytest
+
+from iroha_reader_cli import engines
+from iroha_reader_cli.errors import EngineNotReadyError
+
+
+def settings(**kwargs: object) -> engines.EngineSettings:
+    return engines.EngineSettings(**kwargs)  # type: ignore[arg-type]
+
+
+def test_from_namespace_picks_up_the_engine_flag() -> None:
+    args = argparse.Namespace(engine="piper", wpm=200, outdir=Path("x"), speed=1.5)
+    resolved = engines.EngineSettings.from_namespace(args)
+    assert resolved.requested == "piper"
+    assert resolved.wpm == 200
+    assert resolved.speed == 1.5
+
+
+def test_auto_prefers_openjtalk_for_japanese(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engines, "openjtalk_available", lambda _s: True)
+    monkeypatch.setattr(engines, "piper_available", lambda _s: True)
+    assert engines.choose(settings(), japanese=True) == "openjtalk"
+
+
+def test_auto_prefers_piper_for_other_languages(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engines, "openjtalk_available", lambda _s: True)
+    monkeypatch.setattr(engines, "piper_available", lambda _s: True)
+    assert engines.choose(settings(), japanese=False) == "piper"
+
+
+def test_auto_falls_back_to_espeak(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engines, "openjtalk_available", lambda _s: False)
+    monkeypatch.setattr(engines, "piper_available", lambda _s: False)
+    assert engines.choose(settings(), japanese=True) == "espeak"
+    assert engines.choose(settings(), japanese=False) == "espeak"
+
+
+def test_an_explicit_engine_is_never_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engines, "piper_available", lambda _s: True)
+    assert engines.choose(settings(requested="edge"), japanese=True) == "edge"
+
+
+def test_missing_openjtalk_explains_how_to_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(engines, "openjtalk_available", lambda _s: False)
+    with pytest.raises(EngineNotReadyError, match="apt install open-jtalk"):
+        engines.create(settings(requested="openjtalk"), japanese=True)
+
+
+def test_missing_piper_voice_explains_how_to_get_one(monkeypatch: pytest.MonkeyPatch,
+                                                     tmp_path: Path) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/piper")
+    with pytest.raises(EngineNotReadyError, match="download_voices"):
+        engines.create(settings(requested="piper", piper_data=tmp_path), japanese=False)
+
+
+def test_piper_resolves_a_downloaded_voice(monkeypatch: pytest.MonkeyPatch,
+                                           tmp_path: Path) -> None:
+    (tmp_path / "en_US-lessac-medium.onnx").write_bytes(b"")
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/piper")
+    engine = engines.create(settings(requested="piper", piper_data=tmp_path,
+                                     piper_length=1.3), japanese=False)
+    assert engine.name == "piper"
+    assert engine.detail == "en_US-lessac-medium"
+
+
+def test_edge_picks_a_voice_per_language() -> None:
+    japanese = engines.create(settings(requested="edge"), japanese=True)
+    english = engines.create(settings(requested="edge"), japanese=False)
+    assert japanese.detail.startswith("ja-JP")
+    assert english.detail.startswith("en-US")
+
+
+def test_espeak_language_follows_the_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/espeak-ng")
+    assert engines.create(settings(requested="espeak"), japanese=True).detail == "ja"
+    assert engines.create(settings(requested="espeak"), japanese=False).detail == "en"
+
+
+def test_missing_espeak_explains_how_to_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: None)
+    with pytest.raises(EngineNotReadyError, match="apt install espeak-ng"):
+        engines.create(settings(requested="espeak"), japanese=True)
