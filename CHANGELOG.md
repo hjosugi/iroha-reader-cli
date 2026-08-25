@@ -3,6 +3,22 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `--json` works with `--dry-run` too, printing the lines and their
+  heading levels without making any audio.
+- Two inputs with the same file name and one `-o` directory now say so
+  before the second overwrites the first.
+
+### Fixed
+
+- `auto` picks the Japanese engine by how much of the document is
+  Japanese (10% of its letters), not by whether any of it is. One
+  quoted 猫 in an English page no longer sends the whole page to Open
+  JTalk.
+
 ## [0.12.0] - 2026-08-26
 
 ### Added

@@ -326,14 +326,39 @@ def _reading_stdin(inputs: Sequence[Path]) -> bool:
 
 
 def _dry_run(paths: Sequence[Path], options: ConvertOptions,
-             reporter: Reporter) -> int:
+             reporter: Reporter, as_json: bool = False) -> int:
     from .pipeline import read_lines
 
+    documents = []
     for path in paths:
         reporter.info(f"* {options.source_label or path}")
-        for line in read_lines(path, options, reporter):
+        lines = read_lines(path, options, reporter)
+        if as_json:
+            documents.append({
+                "source": options.source_label or str(path),
+                "lines": [{"text": line.text, "heading": line.heading}
+                          for line in lines],
+            })
+            continue
+        for line in lines:
             print(line.text)
+    if as_json:
+        print(json.dumps(documents, ensure_ascii=False, indent=2))
     return EXIT_OK
+
+
+def _warn_about_collisions(inputs: Sequence[Path], options: ConvertOptions,
+                           reporter: Reporter) -> None:
+    """Two inputs with the same name in one output directory overwrite."""
+    if options.outdir is None or len(inputs) < 2:
+        return
+    seen: set[str] = set()
+    for path in inputs:
+        stem = path.stem
+        if stem in seen:
+            reporter.warn(f"more than one input is called {stem}; "
+                          f"{stem}.{options.audio_format} will be overwritten")
+        seen.add(stem)
 
 
 def _print_json(results: Sequence[ConvertResult]) -> None:
@@ -383,7 +408,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             options.name = options.name or STDIN_NAME
             options.source_label = "(stdin)"
             if args.dry_run:
-                return _dry_run([path], options, reporter)
+                return _dry_run([path], options, reporter, args.as_json)
             audio.check_tools()
             results = convert_all(path, options, settings, reporter)
             if args.as_json:
@@ -391,7 +416,9 @@ def run(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.dry_run:
-        return _dry_run(args.inputs, options, reporter)
+        return _dry_run(args.inputs, options, reporter, args.as_json)
+
+    _warn_about_collisions(args.inputs, options, reporter)
 
     audio.check_tools()
     results = []

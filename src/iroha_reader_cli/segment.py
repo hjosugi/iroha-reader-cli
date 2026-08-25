@@ -50,9 +50,32 @@ _INNER_NEWLINE = re.compile(r"\s*\n\s*")
 _SPEAKABLE = re.compile(r"\w")
 
 
+#: A document with at least this much kana and kanji is read as Japanese.
+JAPANESE_SHARE = 0.1
+_WORD_CHARS = re.compile(r"\w")
+
+
 def has_japanese(text: str) -> bool:
-    """True when the text contains kana or kanji."""
+    """True when the text contains any kana or kanji."""
     return _JA_CHARS.search(text) is not None
+
+
+def japanese_share(text: str) -> float:
+    """How much of the text is kana or kanji, from 0 to 1."""
+    letters = len(_WORD_CHARS.findall(text))
+    if not letters:
+        return 0.0
+    return len(_JA_CHARS.findall(text)) / letters
+
+
+def is_japanese(text: str, threshold: float = JAPANESE_SHARE) -> bool:
+    """True when a Japanese voice is the right one for this text.
+
+    One Japanese word quoted in an English page is not a reason to
+    read the whole page with a Japanese engine, so this asks how much
+    of it is Japanese rather than whether any of it is.
+    """
+    return japanese_share(text) >= threshold
 
 
 def _ends_mid_sentence(chunk: str) -> bool:

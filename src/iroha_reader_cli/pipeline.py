@@ -204,7 +204,7 @@ def _open(path: Path, options: ConvertOptions, settings: EngineSettings,
     outdir.mkdir(parents=True, exist_ok=True)
     stem = options.name or path.stem
 
-    engine = create(settings, japanese=segment.has_japanese(
+    engine = create(settings, japanese=segment.is_japanese(
         "".join(line.text for line in lines)))
     detail = f" ({engine.detail})" if engine.detail else ""
     reporter.info(f"  engine: {engine.name}{detail}")

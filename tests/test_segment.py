@@ -96,3 +96,35 @@ def test_a_lower_case_start_rejoins() -> None:
     assert split_sentences("Version 2. beta was released.") == [
         "Version 2. beta was released.",
     ]
+
+
+def test_the_japanese_share_decides_the_voice() -> None:
+    from iroha_reader_cli.segment import is_japanese, japanese_share
+
+    english = "A paragraph of plain English prose, with nothing else in it."
+    japanese = "これは日本語の文章です。読み上げは日本語の音声で行います。"
+    quoted = english + ' The word for cat is "猫".'
+
+    assert japanese_share(japanese) > 0.9
+    assert is_japanese(japanese)
+
+    # One quoted word is not a reason to read the whole page in Japanese.
+    assert japanese_share(quoted) < 0.1
+    assert not is_japanese(quoted)
+    assert has_japanese(quoted)
+
+    assert japanese_share(english) == 0.0
+    assert not is_japanese(english)
+
+
+def test_a_mixed_document_with_real_japanese_is_japanese() -> None:
+    from iroha_reader_cli.segment import is_japanese
+
+    mixed = "この記事では Python の subprocess モジュールについて説明します。"
+    assert is_japanese(mixed)
+
+
+def test_text_without_letters_is_not_japanese() -> None:
+    from iroha_reader_cli.segment import japanese_share
+
+    assert japanese_share("--- *** ...") == 0.0

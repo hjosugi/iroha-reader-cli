@@ -269,3 +269,37 @@ def test_json_goes_to_stdout_and_progress_to_stderr(
     assert cli.main([str(source), "--json"]) == cli.EXIT_OK
     out = capsys.readouterr()
     assert json.loads(out.out)[0]["engine"] == "fake"
+
+
+def test_dry_run_can_print_json(tmp_path: Path,
+                                capsys: pytest.CaptureFixture[str]) -> None:
+    import json
+
+    source = tmp_path / "notes.md"
+    source.write_text("# Head\n\nBody text.\n", encoding="utf-8")
+    assert cli.main([str(source), "--dry-run", "--json", "-q"]) == cli.EXIT_OK
+    documents = json.loads(capsys.readouterr().out)
+    assert documents[0]["lines"] == [
+        {"text": "Head", "heading": 1},
+        {"text": "Body text.", "heading": None},
+    ]
+
+
+def test_two_inputs_with_one_name_warn(tmp_path: Path,
+                                       capsys: pytest.CaptureFixture[str]) -> None:
+    from iroha_reader_cli.pipeline import ConvertOptions
+    from iroha_reader_cli.reporting import Reporter
+
+    inputs = [tmp_path / "a" / "notes.md", tmp_path / "b" / "notes.md"]
+    cli._warn_about_collisions(inputs, ConvertOptions(outdir=tmp_path), Reporter())
+    assert "more than one input is called notes" in capsys.readouterr().err
+
+
+def test_different_names_do_not_warn(tmp_path: Path,
+                                     capsys: pytest.CaptureFixture[str]) -> None:
+    from iroha_reader_cli.pipeline import ConvertOptions
+    from iroha_reader_cli.reporting import Reporter
+
+    inputs = [tmp_path / "one.md", tmp_path / "two.md"]
+    cli._warn_about_collisions(inputs, ConvertOptions(outdir=tmp_path), Reporter())
+    assert capsys.readouterr().err == ""
