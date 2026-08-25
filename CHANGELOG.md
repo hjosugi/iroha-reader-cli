@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.11.0] - 2026-08-26
 
 ### Added
 
@@ -190,6 +190,7 @@ First public release.
 
 - Added SRT and WebVTT output: `--subs {lrc,srt,vtt}`.
 
+[0.11.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.11.0
 [0.10.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.10.0
 [0.9.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.9.0
 [0.8.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.8.0
