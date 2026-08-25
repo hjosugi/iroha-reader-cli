@@ -1,0 +1,3 @@
+This is a small English sample for iroha-reader-cli.
+It shows how plain text becomes audio and an LRC file.
+Each sentence gets its own timestamp. Numbers like 3.14 stay in one line.

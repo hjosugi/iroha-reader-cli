@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iroha-reader-cli"
+version = "0.7.0"
+description = "Read documents out loud: md / pdf / txt to audio plus synced LRC / SRT / VTT subtitles"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "edge-tts>=7.0",
+  "pypdf>=4.0",
+]
+
+[project.scripts]
+iroha-reader-cli = "iroha_reader_cli.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["iroha_reader_cli*"]
