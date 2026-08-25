@@ -416,11 +416,13 @@ file is something you can catch.
 A single executable, with Python bundled in:
 
 ```sh
-./scripts/build-native.sh      # -> dist/iroha-reader-cli
-./scripts/build-appimage.sh    # -> dist/iroha-reader-cli-x86_64.AppImage
+./scripts/build-native.sh                # -> dist/iroha-reader-cli
+./scripts/build-appimage.sh              # -> dist/iroha-reader-cli-x86_64.AppImage
+ARCH=aarch64 ./scripts/build-appimage.sh # on an arm64 machine
 ```
 
-Both are attached to every [release](https://github.com/hjosugi/iroha-reader-cli/releases).
+Every [release](https://github.com/hjosugi/iroha-reader-cli/releases)
+carries both, for x86-64 and arm64.
 
 ```sh
 chmod +x iroha-reader-cli-x86_64.AppImage

@@ -3,6 +3,20 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- arm64 Linux binaries. Every release now carries a plain binary and
+  an AppImage for both x86-64 and aarch64, each smoke tested on its
+  own architecture before publishing
+  ([#11](https://github.com/hjosugi/iroha-reader-cli/issues/11)).
+
+### Changed
+
+- The plain binary asset is named after its architecture:
+  `iroha-reader-cli-linux-x86_64`, `iroha-reader-cli-linux-aarch64`.
+
 ## [0.9.0] - 2026-08-26
 
 ### Added
