@@ -80,6 +80,7 @@ class EngineSettings:
     edge_pitch: str = "+0Hz"
     edge_volume: str = "+0%"
     concurrency: int = 4
+    min_interval_ms: int = 0
     #: Ask the engine for per-word times. Only edge can report them.
     word_timing: bool = False
 
@@ -170,6 +171,7 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
             voice, rate=settings.rate, pitch=settings.edge_pitch,
             volume=settings.edge_volume, concurrency=settings.concurrency,
             word_timing=settings.word_timing,
+            min_interval_ms=settings.min_interval_ms,
         )
 
     if shutil.which(EspeakEngine.command) is None:

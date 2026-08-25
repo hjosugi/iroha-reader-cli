@@ -33,6 +33,12 @@ and this project uses [semantic versioning](https://semver.org/).
   they are measured rather than guessed; asking for them with a local
   engine is an error. Works for Japanese as well as English
   ([#1](https://github.com/hjosugi/iroha-reader-cli/issues/1)).
+- The edge engine now handles throttling instead of grinding through
+  it: three failures in a row slow the whole run down (announced
+  once), `--min-interval-ms` spaces requests out, and the error that
+  ends a run names the cause -- throttling, network, or TLS -- with
+  the fix for that cause
+  ([#6](https://github.com/hjosugi/iroha-reader-cli/issues/6)).
 
 ## [0.8.0] - 2026-08-26
 

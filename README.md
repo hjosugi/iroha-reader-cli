@@ -281,6 +281,7 @@ are.
 | `--dry-run` | off | print the lines and exit |
 | `-q`, `--quiet` | off | errors only |
 | `--concurrency` | `4` | parallel requests for the `edge` engine |
+| `--min-interval-ms` | `0` | least time between `edge` requests |
 
 Engine specific flags are listed under `--help`.
 
@@ -370,7 +371,9 @@ espeak-ng. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - The `edge` engine is free of charge but uses a Microsoft online
   service in an unofficial way. It can throttle or break at any time.
-  Use a local engine when you need a guarantee.
+  Use a local engine when you need a guarantee. When it does throttle,
+  the run slows itself down, says so, and the final error names the
+  cause; `--min-interval-ms 300` is the usual fix.
 - VOICEVOX itself is free. When you publish the audio, add a credit
   line such as `VOICEVOX:ずんだもん`, and check the terms of the
   character you used.

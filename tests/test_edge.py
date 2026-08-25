@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from iroha_reader_cli.engines import edge
 from iroha_reader_cli.engines.edge import TICKS_PER_SECOND, EdgeEngine
 from iroha_reader_cli.errors import ReaderError
 from iroha_reader_cli.reporting import Reporter
@@ -98,3 +99,76 @@ def test_lines_keep_their_order(tmp_path: Path) -> None:
     )
     assert segments.words is not None
     assert [words[1].text for words in segments.words] == [str(i) for i in range(6)]
+
+
+class Flaky(FakeCommunicate):
+    """Fails a set number of times, then behaves."""
+
+    failures = 0
+
+    async def stream(self) -> AsyncIterator[dict[str, Any]]:
+        if Flaky.failures > 0:
+            Flaky.failures -= 1
+            raise RuntimeError("Too Many Requests (429)")
+        async for chunk in super().stream():
+            yield chunk
+
+
+@pytest.fixture
+def instant_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No real waiting in the tests."""
+    monkeypatch.setattr(edge, "RETRY_BACKOFF", 0.0)
+    monkeypatch.setattr(edge, "MAX_PAUSE", 0.0)
+
+
+def test_a_line_that_fails_once_is_retried(tmp_path: Path, instant_retries: None,
+                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    Flaky.failures = 1
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=Flaky))
+    segments = EdgeEngine("v").synth_all(["hello"], str(tmp_path), Reporter(quiet=True))
+    assert Path(segments.paths[0]).read_bytes() == b"MP3DATA"
+
+
+def test_a_throttled_run_says_what_to_do(tmp_path: Path, instant_retries: None,
+                                         monkeypatch: pytest.MonkeyPatch) -> None:
+    Flaky.failures = 99
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=Flaky))
+    with pytest.raises(ReaderError, match="throttling this account"):
+        EdgeEngine("v").synth_all(["hello"], str(tmp_path), Reporter(quiet=True))
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("HTTP 429 Too Many Requests", "throttling this account"),
+        ("Cannot connect to host: name resolution failed", "network problem"),
+        ("certificate verify failed", "TLS problem"),
+        ("something else entirely", "Retry later"),
+    ],
+)
+def test_the_advice_names_the_cause(message: str, expected: str) -> None:
+    assert expected in edge._advice(RuntimeError(message))
+
+
+def test_the_run_slows_down_after_a_streak(capsys: pytest.CaptureFixture[str]) -> None:
+    streak = edge._FailureStreak(Reporter())
+    for _ in range(edge.THROTTLE_AFTER):
+        streak.failed()
+    asyncio.run(streak.wait())
+    assert "failures in a row" in capsys.readouterr().err
+    streak.worked()
+    assert streak.count == 0
+
+
+def test_min_interval_spaces_requests_out(tmp_path: Path) -> None:
+    engine = EdgeEngine("v", concurrency=4, min_interval_ms=40)
+    lines = [f"line {index}" for index in range(4)]
+
+    async def run() -> float:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        await engine._synth_all(lines, str(tmp_path), Reporter(quiet=True))
+        return loop.time() - started
+
+    # Four requests, 40 ms apart, is at least 120 ms even in parallel.
+    assert asyncio.run(run()) >= 0.12

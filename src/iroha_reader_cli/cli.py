@@ -184,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="volume, like +20%% or -20%% (default: +0%%)")
     g.add_argument("--concurrency", type=int, default=4,
                    help="parallel edge requests (default: 4)")
+    g.add_argument("--min-interval-ms", type=int, default=0,
+                   help="least time between edge requests, in ms. Raise it when "
+                        "the service throttles you (default: 0)")
     return p
 
 
