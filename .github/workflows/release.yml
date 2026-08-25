@@ -9,8 +9,15 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  binaries:
+    name: ${{ matrix.arch }} binary
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-latest }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
     steps:
       - uses: actions/checkout@v7
 
@@ -19,26 +26,49 @@ jobs:
           enable-cache: true
 
       - name: Build the binary and the AppImage
+        env:
+          ARCH: ${{ matrix.arch }}
         run: ./scripts/build-appimage.sh
+
+      - name: Smoke test both of them
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
+          ./dist/iroha-reader-cli examples/sample_en.txt -o /tmp/plain
+          test -s /tmp/plain/sample_en.mp3
+          ./dist/iroha-reader-cli-${{ matrix.arch }}.AppImage \
+            --appimage-extract-and-run examples/sample_en.txt -o /tmp/appimage
+          test -s /tmp/appimage/sample_en.mp3
+
+      - name: Name the binary after its architecture
+        run: mv dist/iroha-reader-cli dist/iroha-reader-cli-linux-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaries-${{ matrix.arch }}
+          path: |
+            dist/iroha-reader-cli-linux-${{ matrix.arch }}
+            dist/iroha-reader-cli-${{ matrix.arch }}.AppImage
+          if-no-files-found: error
+
+  publish:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
 
       - name: Build the wheel and the sdist
         run: uv build --out-dir dist-python
 
-      - name: Smoke test the AppImage
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng poppler-utils
-          ./dist/iroha-reader-cli-x86_64.AppImage --appimage-extract-and-run \
-            examples/sample_en.txt -o /tmp/out
-          test -s /tmp/out/sample_en.mp3
-
-      - uses: actions/upload-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
-          name: iroha-reader-cli-${{ github.ref_name }}
-          path: |
-            dist/iroha-reader-cli
-            dist/iroha-reader-cli-x86_64.AppImage
-            dist-python/*
+          pattern: binaries-*
+          merge-multiple: true
+          path: dist
 
       - name: Notes for this version
         run: |
@@ -49,6 +79,7 @@ jobs:
             printing { print }
           ' CHANGELOG.md > release-notes.md
           test -s release-notes.md || echo "See CHANGELOG.md." > release-notes.md
+          ls -l dist dist-python
           cat release-notes.md
 
       - name: Publish the release
@@ -56,7 +87,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          files=(dist/iroha-reader-cli dist/iroha-reader-cli-x86_64.AppImage dist-python/*)
+          files=(dist/* dist-python/*)
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
             gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
