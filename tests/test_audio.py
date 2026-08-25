@@ -76,3 +76,51 @@ def test_chapters_land_in_the_mp3(tmp_path: Path) -> None:
     assert "tag:title=One" in out
     assert "tag:title=Two" in out
     assert audio.duration_sec(mp3) == pytest.approx(2.0, abs=0.2)
+
+
+@requires_ffmpeg
+def test_wav_length_comes_from_the_header(tmp_path: Path) -> None:
+    path = str(tmp_path / "quiet.wav")
+    audio.make_silence(path, 1234, 22050)
+    # The header answer has to match what ffprobe would have said.
+    from_header = audio.wav_duration(path)
+    assert from_header is not None
+    assert from_header == pytest.approx(float(audio._probe(path, "format=duration")),
+                                        abs=0.001)
+
+
+def test_a_file_that_is_not_a_wav_falls_back(tmp_path: Path) -> None:
+    path = tmp_path / "nope.wav"
+    path.write_bytes(b"ID3 this is an mp3 really")
+    assert audio.wav_duration(str(path)) is None
+
+
+def test_a_missing_file_falls_back(tmp_path: Path) -> None:
+    assert audio.wav_duration(str(tmp_path / "gone.wav")) is None
+
+
+def test_a_truncated_wav_reports_what_is_there(tmp_path: Path) -> None:
+    # 1 second at 8000 bytes per second, but only half the data is written.
+    header = (b"RIFF" + (36 + 8000).to_bytes(4, "little") + b"WAVEfmt "
+              + (16).to_bytes(4, "little") + (1).to_bytes(2, "little")
+              + (1).to_bytes(2, "little") + (8000).to_bytes(4, "little")
+              + (8000).to_bytes(4, "little") + (1).to_bytes(2, "little")
+              + (8).to_bytes(2, "little")
+              + b"data" + (8000).to_bytes(4, "little"))
+    path = tmp_path / "half.wav"
+    path.write_bytes(header + b"\x00" * 4000)
+    assert audio.wav_duration(str(path)) == pytest.approx(0.5)
+
+
+def test_an_odd_sized_chunk_is_skipped(tmp_path: Path) -> None:
+    # LIST chunks with an odd length are padded to an even boundary.
+    odd = b"LIST" + (3).to_bytes(4, "little") + b"abc" + b"\x00"
+    header = (b"RIFF" + (0).to_bytes(4, "little") + b"WAVE" + odd + b"fmt "
+              + (16).to_bytes(4, "little") + (1).to_bytes(2, "little")
+              + (1).to_bytes(2, "little") + (8000).to_bytes(4, "little")
+              + (16000).to_bytes(4, "little") + (2).to_bytes(2, "little")
+              + (16).to_bytes(2, "little")
+              + b"data" + (16000).to_bytes(4, "little"))
+    path = tmp_path / "listed.wav"
+    path.write_bytes(header + b"\x00" * 16000)
+    assert audio.wav_duration(str(path)) == pytest.approx(1.0)

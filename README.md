@@ -390,6 +390,21 @@ Each part gets its own audio and its own subtitles, timed from zero.
 Splitting after a normal run costs nothing extra: the segments are
 already cached.
 
+## Does it scale to a book
+
+Frankenstein from Project Gutenberg, on a laptop:
+
+```sh
+iroha-reader-cli frankenstein.epub --split-by-heading 2 --engine espeak --jobs 8
+```
+
+9290 lines, 33 chapters, 12.4 hours of audio, 2 minutes of work. Each
+chapter comes with its own LRC, and the `[length:]` in each one
+matches its mp3 to the hundredth of a second.
+
+A neural voice is slower per line -- that is the trade -- but the
+cache means you pay it once.
+
 ## The segment cache
 
 Synthesis is the slow part. Every line is stored under a hash of the

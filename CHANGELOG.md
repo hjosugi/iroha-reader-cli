@@ -3,6 +3,19 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Segment lengths are read out of the wav header instead of by
+  running ffprobe once per line. A whole novel (9290 lines) used to
+  spend six minutes measuring after one minute of synthesis; the
+  measuring is now a fifth of a second. mp3 segments still go through
+  ffprobe.
+- The progress counter only rewrites one line when it is talking to a
+  terminal. In a log file or a pipe it prints ten lines for the whole
+  run instead of tens of thousands of carriage returns.
+
 ## [0.10.0] - 2026-08-26
 
 ### Added
