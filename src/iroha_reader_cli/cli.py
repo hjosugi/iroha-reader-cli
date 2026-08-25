@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from . import __version__, audio, config, engines, extract, speakers, subtitles
 from .engines import EngineSettings, edge, openjtalk, piper, voicevox
@@ -57,7 +59,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Convert md / pdf / txt into audio plus synced subtitles.",
     )
     p.add_argument("inputs", nargs="*", type=Path,
-                   help=f"input files ({' '.join(extract.SUPPORTED_SUFFIXES)})")
+                   help=f"input files ({' '.join(extract.SUPPORTED_SUFFIXES)}), "
+                        "or - for stdin (see --type)")
     p.add_argument("-o", "--outdir", type=Path, default=None,
                    help="output directory (default: next to the input)")
     p.add_argument("--name", default=None,
@@ -86,6 +89,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS,
                    help=f"max characters per subtitle line "
                         f"(default: {DEFAULT_MAX_CHARS})")
+    p.add_argument("--type", dest="input_type", choices=list(extract.INPUT_TYPES),
+                   default="md",
+                   help="how to read stdin when the input is - (default: md)")
     p.add_argument("--pages", default=None,
                    help="pdf page range, like 3-10 or 5 or 3- (default: all)")
     p.add_argument("--dict", type=Path, default=None, dest="dict_file",
@@ -211,12 +217,36 @@ def build_options(args: argparse.Namespace) -> ConvertOptions:
     )
 
 
-def _dry_run(args: argparse.Namespace, options: ConvertOptions,
+STDIN_ARG = "-"
+STDIN_NAME = "stdin"
+
+
+@contextmanager
+def stdin_source(kind: str, stream: IO[bytes] | None = None) -> Iterator[Path]:
+    """Spool stdin to a temporary file so the normal readers can use it."""
+    data = (stream if stream is not None else sys.stdin.buffer).read()
+    if not data.strip():
+        raise ReaderError("nothing on stdin")
+    with tempfile.TemporaryDirectory(prefix="iroha_stdin_") as tmp:
+        path = Path(tmp) / f"{STDIN_NAME}.{kind}"
+        path.write_bytes(data)
+        yield path
+
+
+def _reading_stdin(inputs: Sequence[Path]) -> bool:
+    if not any(str(path) == STDIN_ARG for path in inputs):
+        return False
+    if len(inputs) > 1:
+        raise ReaderError(f"{STDIN_ARG} cannot be mixed with other input files")
+    return True
+
+
+def _dry_run(paths: Sequence[Path], options: ConvertOptions,
              reporter: Reporter) -> int:
     from .pipeline import read_lines
 
-    for path in args.inputs:
-        reporter.info(f"* {path}")
+    for path in paths:
+        reporter.info(f"* {options.source_label or path}")
         for line in read_lines(path, options, reporter):
             print(line)
     return EXIT_OK
@@ -240,8 +270,20 @@ def run(argv: Sequence[str] | None = None) -> int:
     options = build_options(args)
     options.validate()
 
+    if _reading_stdin(args.inputs):
+        with stdin_source(args.input_type) as path:
+            # There is no input file to sit next to, or to be named after.
+            options.outdir = options.outdir or Path.cwd()
+            options.name = options.name or STDIN_NAME
+            options.source_label = "(stdin)"
+            if args.dry_run:
+                return _dry_run([path], options, reporter)
+            audio.check_tools()
+            convert(path, options, settings, reporter)
+        return EXIT_OK
+
     if args.dry_run:
-        return _dry_run(args, options, reporter)
+        return _dry_run(args.inputs, options, reporter)
 
     audio.check_tools()
     for path in args.inputs:

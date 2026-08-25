@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -152,3 +154,36 @@ def test_subs_from_a_config_string(tmp_path: Path) -> None:
     config.write_text('subs = "lrc, vtt"\n', encoding="utf-8")
     options = cli.build_options(cli.parse_args(["a.md", "--config", str(config)]))
     assert options.subtitle_formats == ("lrc", "vtt")
+
+
+def test_stdin_becomes_a_temporary_file() -> None:
+    with cli.stdin_source("md", io.BytesIO(b"# Head\n\nBody.\n")) as path:
+        assert path.name == "stdin.md"
+        assert path.read_text(encoding="utf-8").startswith("# Head")
+    assert not path.exists()
+
+
+def test_empty_stdin_is_an_error() -> None:
+    with pytest.raises(ReaderError, match="nothing on stdin"), \
+            cli.stdin_source("md", io.BytesIO(b"   \n")):
+        pass
+
+
+def test_stdin_cannot_be_mixed_with_files() -> None:
+    with pytest.raises(ReaderError, match="cannot be mixed"):
+        cli.run(["-", "notes.md"])
+
+
+def test_dry_run_reads_stdin(monkeypatch: pytest.MonkeyPatch,
+                             capsys: pytest.CaptureFixture[str]) -> None:
+    monkeypatch.setattr(sys, "stdin", _FakeStdin(b"# Head\n\nBody text.\n"))
+    assert cli.main(["-", "--dry-run"]) == cli.EXIT_OK
+    out = capsys.readouterr()
+    assert out.out == "Head\nBody text.\n"
+    # The temporary file name never reaches the user.
+    assert out.err.strip() == "* (stdin)"
+
+
+class _FakeStdin:
+    def __init__(self, data: bytes) -> None:
+        self.buffer = io.BytesIO(data)

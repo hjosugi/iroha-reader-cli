@@ -40,6 +40,8 @@ class ConvertOptions:
     keep_code: bool = False
     write_text: bool = False
     readings: Readings = field(default_factory=Readings)
+    #: Shown instead of the path in the log, for input that is not a real file.
+    source_label: str | None = None
 
     def __post_init__(self) -> None:
         # A config file or a library caller may pass plain strings.
@@ -117,7 +119,7 @@ def convert(path: Path, options: ConvertOptions,
     settings = settings if settings is not None else EngineSettings()
     reporter = reporter if reporter is not None else Reporter(quiet=True)
 
-    reporter.info(f"* {path}")
+    reporter.info(f"* {options.source_label or path}")
     lines = read_lines(path, options, reporter)
     reporter.info(f"  lines: {len(lines)}")
 

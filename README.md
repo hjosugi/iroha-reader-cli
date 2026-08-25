@@ -6,7 +6,7 @@
 
 Read a document out loud and get the subtitles for free.
 
-- **In:** `.md` / `.pdf` / `.txt`
+- **In:** `.md` / `.pdf` / `.txt`, or `-` for stdin
 - **Out:** one audio file (`.mp3` or `.wav`) plus timed text
   (`.lrc` by default, `.srt` and `.vtt` on request)
 
@@ -104,9 +104,14 @@ iroha-reader-cli notes.md --engine voicevox --speaker "Zundamon"
 
 # Check the line split first. No audio is made.
 iroha-reader-cli notes.md --dry-run
+
+# Straight from a pipe. --type says how to read it (md, txt, or pdf)
+pandoc report.docx -t markdown | iroha-reader-cli - --name report
 ```
 
 Several files at once work too; each one becomes its own audio file.
+With `-`, the output lands in the current directory and is called
+`stdin.*` unless `--name` says otherwise.
 
 ## Voice customization
 
@@ -190,6 +195,7 @@ Use `--config other.toml` to point somewhere else.
 | `--subs` | `lrc` | subtitle formats: `--subs lrc,srt,vtt` |
 | `--gap-ms` | `200` | silence between lines, in ms |
 | `--max-chars` | `60` | max characters per subtitle line |
+| `--type` | `md` | how to read stdin when the input is `-`: `md`, `txt`, `pdf` |
 | `--pages` | all | pdf page range: `3-10`, `5`, `3-` |
 | `--dict` | none | reading dictionary TSV (word TAB reading) |
 | `--jobs` | `4` | lines synthesized at once by the local engines. Piper loads its model per line, so lower it if memory is tight |

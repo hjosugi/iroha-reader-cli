@@ -3,6 +3,15 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `-` as an input reads the document from stdin, with `--type
+  {md,txt,pdf}` in place of the missing file suffix. The output goes
+  to the current directory as `stdin.*`, or wherever `--name` and
+  `-o` say ([#12](https://github.com/hjosugi/iroha-reader-cli/issues/12)).
+
 ## [0.8.0] - 2026-08-26
 
 First public release.

@@ -94,6 +94,10 @@ def parse_page_range(spec: str) -> tuple[int, int | None]:
     return start, end
 
 
+#: What --type accepts for stdin, mapped to the suffix used internally.
+INPUT_TYPES = ("md", "txt", "pdf")
+
+
 def extract(path: Path, keep_code: bool = False,
             pages: tuple[int, int | None] | None = None) -> str:
     """Extract plain text, picking the reader from the file suffix."""
