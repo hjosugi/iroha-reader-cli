@@ -7,6 +7,10 @@ and this project uses [semantic versioning](https://semver.org/).
 
 ### Added
 
+- `--json` prints the result on stdout: the files written, the
+  chapters, and every line with its timing (and its words, with
+  `--lrc-style word`). Progress stays on stderr, so it pipes into
+  `jq` as it is.
 - `--completion {bash,zsh,fish}` prints a completion script. It is
   generated from the argparse parser itself, so a new flag is
   completable the day it is added.

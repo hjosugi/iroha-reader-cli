@@ -56,26 +56,17 @@ class Job:
     result: ConvertResult
 
     def payload(self) -> dict[str, Any]:
-        timeline = self.result.timeline
-        lines: list[dict[str, Any]] = []
-        for index, line in enumerate(self.result.lines):
-            lines.append({
-                "text": line.text,
-                "heading": line.heading,
-                "start": round(timeline.starts[index], 3),
-                "end": round(timeline.starts[index] + timeline.durations[index], 3),
-            })
-        return {
+        """The conversion as the page wants it: paths become urls."""
+        payload = self.result.as_dict()
+        payload.update({
             "id": self.id,
-            "engine": self.result.engine,
-            "total": round(timeline.total, 3),
             "audio": f"/files/{self.id}/{self.result.audio.name}",
             "files": [f"/files/{self.id}/{path.name}"
                       for path in (self.result.audio, *self.result.subtitle_files)],
-            "chapters": [{"title": mark.title, "start": round(mark.start, 3)}
-                         for mark in self.result.chapters],
-            "lines": lines,
-        }
+        })
+        for gone in ("source", "subtitles", "text_file"):
+            payload.pop(gone, None)
+        return payload
 
 
 class Reader:

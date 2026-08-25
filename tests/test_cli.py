@@ -244,3 +244,28 @@ def test_an_unexpected_name_falls_back_to_the_full_one(
     # Under pytest, argv[0] is pytest; the help should not say that.
     monkeypatch.setattr(sys, "argv", ["/usr/bin/pytest"])
     assert cli.prog_name() == cli.PROG
+
+
+def test_json_goes_to_stdout_and_progress_to_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str]
+) -> None:
+    import json
+
+    from iroha_reader_cli import audio, pipeline
+    from iroha_reader_cli.pipeline import ConvertResult
+    from iroha_reader_cli.timeline import build
+
+    source = tmp_path / "notes.md"
+    source.write_text("# Head\n\nBody text.\n", encoding="utf-8")
+    fake = ConvertResult(
+        source=source, audio=tmp_path / "notes.mp3", subtitle_files=(),
+        text_file=None, lines=(), timeline=build([], gap_sec=0.0), engine="fake",
+    )
+    monkeypatch.setattr(audio, "check_tools", lambda: None)
+    monkeypatch.setattr(pipeline, "convert_all", lambda *_a, **_kw: [fake])
+    monkeypatch.setattr(cli, "convert_all", lambda *_a, **_kw: [fake])
+
+    assert cli.main([str(source), "--json"]) == cli.EXIT_OK
+    out = capsys.readouterr()
+    assert json.loads(out.out)[0]["engine"] == "fake"

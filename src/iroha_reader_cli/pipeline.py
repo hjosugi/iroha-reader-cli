@@ -12,6 +12,7 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from . import audio, document, extract, segment, subtitles
 from . import cache as cache_module
@@ -103,6 +104,37 @@ class ConvertResult:
     def texts(self) -> tuple[str, ...]:
         """Just the spoken text of each line."""
         return tuple(line.text for line in self.lines)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Everything about this conversion, ready for JSON."""
+        timeline = self.timeline
+        lines: list[dict[str, Any]] = []
+        for index, line in enumerate(self.lines):
+            start = timeline.starts[index]
+            entry: dict[str, Any] = {
+                "text": line.text,
+                "heading": line.heading,
+                "start": round(start, 3),
+                "end": round(start + timeline.durations[index], 3),
+            }
+            if timeline.words is not None:
+                entry["words"] = [
+                    {"text": word.text, "start": round(word.start, 3),
+                     "end": round(word.start + word.duration, 3)}
+                    for word in timeline.words[index]
+                ]
+            lines.append(entry)
+        return {
+            "source": str(self.source),
+            "engine": self.engine,
+            "audio": str(self.audio),
+            "subtitles": [str(path) for path in self.subtitle_files],
+            "text_file": str(self.text_file) if self.text_file else None,
+            "total": round(timeline.total, 3),
+            "chapters": [{"title": mark.title, "start": round(mark.start, 3),
+                          "end": round(mark.end, 3)} for mark in self.chapters],
+            "lines": lines,
+        }
 
 
 def read_lines(path: Path, options: ConvertOptions,

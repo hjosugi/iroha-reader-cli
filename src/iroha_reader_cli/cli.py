@@ -7,6 +7,7 @@ pipeline.convert, which is also usable as a library.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import tempfile
 from collections.abc import Iterator, Sequence
@@ -32,6 +33,7 @@ from .pipeline import (
     AUDIO_FORMATS,
     DEFAULT_CHAPTER_LEVEL,
     ConvertOptions,
+    ConvertResult,
     convert_all,
 )
 from .readings import Readings
@@ -164,6 +166,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="read markdown code blocks out loud too")
     p.add_argument("--write-text", action="store_true",
                    help="also save the extracted lines as a .lines.txt file")
+    p.add_argument("--json", action="store_true", dest="as_json",
+                   help="print the result as JSON on stdout: paths, chapters, "
+                        "and every line with its timing")
     p.add_argument("--dry-run", action="store_true",
                    help="print the lines and exit, no audio")
     p.add_argument("-q", "--quiet", action="store_true",
@@ -331,6 +336,12 @@ def _dry_run(paths: Sequence[Path], options: ConvertOptions,
     return EXIT_OK
 
 
+def _print_json(results: Sequence[ConvertResult]) -> None:
+    """One object per output file, on stdout, so it can be piped."""
+    print(json.dumps([result.as_dict() for result in results],
+                     ensure_ascii=False, indent=2))
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     """Run the command line and return an exit code."""
     args = parse_args(argv)
@@ -374,15 +385,20 @@ def run(argv: Sequence[str] | None = None) -> int:
             if args.dry_run:
                 return _dry_run([path], options, reporter)
             audio.check_tools()
-            convert_all(path, options, settings, reporter)
+            results = convert_all(path, options, settings, reporter)
+            if args.as_json:
+                _print_json(results)
         return EXIT_OK
 
     if args.dry_run:
         return _dry_run(args.inputs, options, reporter)
 
     audio.check_tools()
+    results = []
     for path in args.inputs:
-        convert_all(path, options, settings, reporter)
+        results.extend(convert_all(path, options, settings, reporter))
+    if args.as_json:
+        _print_json(results)
     return EXIT_OK
 
 

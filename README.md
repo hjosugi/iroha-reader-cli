@@ -359,6 +359,7 @@ are.
 | `--clear-cache` | off | delete the cached segments and exit |
 | `--keep-code` | off | read markdown code blocks out loud too |
 | `--write-text` | off | also save the lines as `.lines.txt` |
+| `--json` | off | print the result as JSON on stdout |
 | `--dry-run` | off | print the lines and exit |
 | `-q`, `--quiet` | off | errors only |
 | `--concurrency` | `4` | parallel requests for the `edge` engine |
@@ -462,6 +463,27 @@ it. That is the point of the limit.
 Changing the voice, the speed, the pitch, or the voice file itself
 misses the cache on purpose. `--gap-ms`, `--bitrate`, and `--loudnorm`
 do not: they only affect the join, so they never cost a re-synthesis.
+
+## JSON out
+
+`--json` prints the whole result on stdout, so the rest of a pipeline
+can have it. Progress stays on stderr, so the JSON is clean:
+
+```sh
+irh notes.md --json -q | jq '.[0].chapters'
+```
+
+```json
+[
+  { "title": "Opening", "start": 0.0, "end": 17.72 },
+  { "title": "Chapter One", "start": 17.72, "end": 36.55 }
+]
+```
+
+Each result carries the paths it wrote, the chapters, and every line
+with its start and end (and its words, with `--lrc-style word`). One
+object per output file, so `--split-by-heading` gives you one per
+chapter.
 
 ## Use it as a library
 

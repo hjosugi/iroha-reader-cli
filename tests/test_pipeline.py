@@ -283,3 +283,45 @@ def test_pruning_can_be_turned_off(tmp_path: Path, fake_engine: FakeEngine) -> N
     convert(write_source(tmp_path), ConvertOptions(cache_dir=store, cache_max_mb=0))
 
     assert cache.get("f" * 32, "wav") is not None
+
+
+def test_the_result_serializes_to_json(tmp_path: Path, fake_engine: FakeEngine) -> None:
+    import json
+
+    result = convert(write_book(tmp_path),
+                     ConvertOptions(gap_ms=0, write_text=True,
+                                    subtitle_formats=("lrc", "srt")))
+    payload = result.as_dict()
+    assert json.loads(json.dumps(payload)) == payload
+
+    assert payload["engine"] == "fake"
+    assert payload["audio"].endswith("book.mp3")
+    assert [Path(p).name for p in payload["subtitles"]] == ["book.lrc", "book.srt"]
+    assert payload["text_file"].endswith("book.lines.txt")
+    assert payload["total"] == pytest.approx(12.0)
+    assert [c["title"] for c in payload["chapters"]] == [
+        "Opening", "Chapter One", "Chapter Two",
+    ]
+    first = payload["lines"][0]
+    assert first == {"text": "Opening", "heading": 1, "start": 0.0, "end": 2.0}
+    assert "words" not in first
+
+
+def test_word_times_reach_the_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+                                   fake_engine: FakeEngine) -> None:
+    from iroha_reader_cli.timeline import Word
+
+    def with_words(lines: Sequence[str], outdir: str,
+                   reporter: Reporter) -> Segments:
+        segments = FakeEngine.synth_all(fake_engine, lines, outdir, reporter)
+        return Segments(segments.paths,
+                        [[Word(line.split()[0], 0.0, 0.5)] for line in lines])
+
+    # An engine that reports words has to say so; the cache checks it.
+    monkeypatch.setattr(fake_engine, "word_timing", True)
+    monkeypatch.setattr(fake_engine, "synth_all", with_words)
+    payload = convert(write_source(tmp_path),
+                      ConvertOptions(cache_dir=tmp_path / "cache")).as_dict()
+    assert payload["lines"][0]["words"] == [
+        {"text": "First", "start": 0.0, "end": 0.5},
+    ]
