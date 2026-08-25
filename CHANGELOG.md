@@ -53,6 +53,11 @@ and this project uses [semantic versioning](https://semver.org/).
   since the segments are already cached
   ([#5](https://github.com/hjosugi/iroha-reader-cli/issues/5)).
 
+- epub input, with nothing but the standard library: the spine gives
+  the reading order and the `<h*>` tags give the chapters, so
+  `novel.epub --split-by-heading 1` writes one audio file per chapter
+  ([#8](https://github.com/hjosugi/iroha-reader-cli/issues/8)).
+
 ### Changed
 
 - `ConvertResult.lines` is now a tuple of `Line` (text plus heading

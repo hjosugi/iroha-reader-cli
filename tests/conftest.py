@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -66,4 +67,45 @@ def write_pdf(path: Path, pages: list[list[str]]) -> Path:
     out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
         len(objects) + 1, xref_at)
     path.write_bytes(bytes(out))
+    return path
+
+
+EPUB_CONTAINER = """<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/book.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"""
+
+
+def write_epub(path: Path, documents: list[tuple[str, str]],
+               container: str = EPUB_CONTAINER, opf: str | None = None) -> Path:
+    """Write a minimal epub. `documents` are (file name, xhtml) pairs."""
+    items = "\n".join(
+        f'<item id="d{index}" href="{name}" media-type="application/xhtml+xml"/>'
+        for index, (name, _) in enumerate(documents)
+    )
+    spine = "\n".join(f'<itemref idref="d{index}"/>'
+                       for index in range(len(documents)))
+    package = opf if opf is not None else f"""<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>A Small Book</dc:title>
+  </metadata>
+  <manifest>
+    {items}
+    <item id="css" href="style.css" media-type="text/css"/>
+  </manifest>
+  <spine>
+    {spine}
+  </spine>
+</package>"""
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("mimetype", "application/epub+zip")
+        archive.writestr("META-INF/container.xml", container)
+        archive.writestr("OEBPS/book.opf", package)
+        archive.writestr("OEBPS/style.css", "p { color: red }")
+        for name, html in documents:
+            archive.writestr(f"OEBPS/{name}", html)
     return path

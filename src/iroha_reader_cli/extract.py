@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from . import epub
 from .document import Block
 from .errors import MissingCommandError, ReaderError, UnsupportedInputError
 from .proc import run
@@ -15,7 +16,7 @@ _TABLE_SEP = re.compile(r"^\s*\|[-:\s|]+\|\s*$", re.M)
 
 MARKDOWN_SUFFIXES = (".md", ".markdown")
 TEXT_SUFFIXES = (".txt", ".text")
-SUPPORTED_SUFFIXES = (*MARKDOWN_SUFFIXES, ".pdf", *TEXT_SUFFIXES)
+SUPPORTED_SUFFIXES = (*MARKDOWN_SUFFIXES, ".pdf", ".epub", *TEXT_SUFFIXES)
 
 
 def read_text_file(path: Path) -> str:
@@ -176,7 +177,7 @@ def parse_page_range(spec: str) -> tuple[int, int | None]:
 
 
 #: What --type accepts for stdin, mapped to the suffix used internally.
-INPUT_TYPES = ("md", "txt", "pdf")
+INPUT_TYPES = ("md", "txt", "pdf", "epub")
 
 
 def extract_blocks(path: Path, keep_code: bool = False,
@@ -186,10 +187,13 @@ def extract_blocks(path: Path, keep_code: bool = False,
 
     Formats that carry no structure of their own come back as one block.
     """
-    if path.suffix.lower() in MARKDOWN_SUFFIXES:
-        if not path.exists():
-            raise ReaderError(f"file not found: {path}")
+    suffix = path.suffix.lower()
+    if suffix in (*MARKDOWN_SUFFIXES, ".epub") and not path.exists():
+        raise ReaderError(f"file not found: {path}")
+    if suffix in MARKDOWN_SUFFIXES:
         return markdown_blocks(read_text_file(path), keep_code=keep_code)
+    if suffix == ".epub":
+        return epub.extract_blocks(path)
     return [Block(extract(path, keep_code=keep_code, pages=pages,
                           pdf_backend=pdf_backend))]
 
@@ -209,6 +213,9 @@ def extract(path: Path, keep_code: bool = False,
         return strip_markdown(read_text_file(path), keep_code=keep_code)
     if suffix in TEXT_SUFFIXES:
         return read_text_file(path)
+    if suffix == ".epub":
+        # epub is structured; go through extract_blocks to keep its headings.
+        return "\n\n".join(block.text for block in epub.extract_blocks(path))
     raise UnsupportedInputError(
         f"unsupported file type: {suffix or path.name} "
         f"(use {' / '.join(SUPPORTED_SUFFIXES)})"

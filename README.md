@@ -6,7 +6,7 @@
 
 Read a document out loud and get the subtitles for free.
 
-- **In:** `.md` / `.pdf` / `.txt`, or `-` for stdin
+- **In:** `.md` / `.epub` / `.pdf` / `.txt`, or `-` for stdin
 - **Out:** one audio file (`.mp3` or `.wav`) plus timed text
   (`.lrc` by default, `.srt` and `.vtt` on request), with chapters
   from the headings
@@ -126,6 +126,9 @@ iroha-reader-cli paper.pdf --format wav -o out/ --subs lrc,srt
 
 # Only pages 3 to 10 of a pdf
 iroha-reader-cli book.pdf --pages 3-10
+
+# An epub, one audio file per chapter
+iroha-reader-cli novel.epub --split-by-heading 1
 
 # High quality Japanese from a running VOICEVOX engine (port 50021)
 iroha-reader-cli notes.md --engine voicevox --speaker "Zundamon"
@@ -295,7 +298,7 @@ are.
 | `--lrc-style` | `line` | `word` adds a timestamp per word (Enhanced LRC, karaoke VTT). Needs `--engine edge` |
 | `--gap-ms` | `200` | silence between lines, in ms |
 | `--max-chars` | `60` | max characters per subtitle line |
-| `--type` | `md` | how to read stdin when the input is `-`: `md`, `txt`, `pdf` |
+| `--type` | `md` | how to read stdin when the input is `-`: `md`, `txt`, `pdf`, `epub` |
 | `--pdf-backend` | `auto` | `auto` / `pdftotext` / `pypdf` |
 | `--pages` | all | pdf page range: `3-10`, `5`, `3-` |
 | `--dict` | none | reading dictionary TSV (word TAB reading) |
@@ -311,6 +314,22 @@ are.
 | `--min-interval-ms` | `0` | least time between `edge` requests |
 
 Engine specific flags are listed under `--help`.
+
+## epub
+
+An epub is a zip of XHTML with a spine that says in which order to
+read it. That is all this needs: no extra package, and the `<h1>`
+headings become chapters the same way markdown ones do.
+
+```sh
+iroha-reader-cli novel.epub                       # one file, chapter marks
+iroha-reader-cli novel.epub --split-by-heading 1  # one file per chapter
+iroha-reader-cli novel.epub --dry-run | head      # see what it will read
+```
+
+Scripts, styles, and `<title>` tags are skipped; entities and line
+breaks come out as text. DRM protected files are not supported and
+never will be.
 
 ## Chapters
 
