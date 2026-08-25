@@ -49,18 +49,13 @@ def _print_voicevox(settings: EngineSettings, out: TextIO) -> None:
 
 
 def _print_openjtalk(out: TextIO) -> None:
-    print("# open_jtalk voices (use the path with --ojt-voice)", file=out)
-    found = False
-    for root in openjtalk.VOICE_DIRS:
-        base = Path(root)
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*.htsvoice")):
-            print(path, file=out)
-            found = True
-    if not found:
-        print("(none found. Install an hts-voice-* package or download "
-              "a .htsvoice file)", file=out)
+    print("# open_jtalk voices (use the name or the path with --ojt-voice)", file=out)
+    voices = openjtalk.installed_voices()
+    for path in voices:
+        print(f"{path.stem:<32} {path}", file=out)
+    if not voices:
+        print("(none found. Install an hts-voice-* package, or drop a .htsvoice "
+              f"file in {openjtalk.VOICE_DIRS[0]})", file=out)
 
 
 def _print_piper(settings: EngineSettings, out: TextIO) -> None:

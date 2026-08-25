@@ -177,6 +177,29 @@ iroha-reader-cli notes.md --engine voicevox --speaker "Zundamon:Amaama"
 
 Piper voice samples: <https://rhasspy.github.io/piper-samples/>.
 
+### Nicer Japanese voices for Open JTalk
+
+The apt voice (`nitech-jp-atr503-m001`) is the flattest thing in the
+box. MMDAgent's free "Mei" and "Takumi" voices sound considerably
+better and are not packaged in Debian or Ubuntu:
+
+```sh
+mkdir -p ~/.local/share/iroha-reader-cli/hts-voice
+curl -L -o /tmp/mmdagent.zip "https://sourceforge.net/projects/mmdagent/files/MMDAgent_Example/MMDAgent_Example-1.8/MMDAgent_Example-1.8.zip/download"
+unzip -j /tmp/mmdagent.zip 'MMDAgent_Example-1.8/Voice/*/*.htsvoice' \
+  -d ~/.local/share/iroha-reader-cli/hts-voice
+
+iroha-reader-cli notes.md --ojt-voice mei_happy
+```
+
+Anything in that directory can be named instead of pathed
+(`mei_normal`, `takumi_sad`, ...), `--list-speakers --engine
+openjtalk` lists what you have, and if the apt voice is missing a Mei
+voice is preferred over the rest.
+
+The Mei and Takumi voices are CC BY 3.0 (Nagoya Institute of
+Technology). Credit them if you publish the audio.
+
 ## PDF text
 
 Two backends, picked by `--pdf-backend`:

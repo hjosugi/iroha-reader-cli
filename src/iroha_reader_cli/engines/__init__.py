@@ -105,7 +105,7 @@ def openjtalk_available(settings: EngineSettings) -> bool:
     return (
         shutil.which(OpenJTalkEngine.command) is not None
         and Path(settings.ojt_dict).is_dir()
-        and Path(settings.ojt_voice).is_file()
+        and openjtalk.resolve_voice(settings.ojt_voice) is not None
     )
 
 
@@ -138,10 +138,20 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
         )
 
     if name == "openjtalk":
-        if not openjtalk_available(settings):
+        voice = openjtalk.resolve_voice(settings.ojt_voice)
+        ready = (shutil.which(OpenJTalkEngine.command) is not None
+                 and Path(settings.ojt_dict).is_dir())
+        if not ready:
             raise EngineNotReadyError(f"open_jtalk is not ready. {openjtalk.INSTALL_HINT}")
+        if voice is None:
+            known = ", ".join(path.stem for path in openjtalk.installed_voices())
+            raise EngineNotReadyError(
+                f"no such open_jtalk voice: {settings.ojt_voice}. "
+                + (f"Installed: {known}" if known
+                   else "No .htsvoice file found. " + openjtalk.INSTALL_HINT)
+            )
         return OpenJTalkEngine(
-            settings.ojt_dict, settings.ojt_voice, speed=settings.speed,
+            settings.ojt_dict, voice, speed=settings.speed,
             halftone=settings.ojt_halftone, volume_db=settings.ojt_volume_db,
             jobs=settings.jobs,
         )

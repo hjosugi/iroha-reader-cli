@@ -39,6 +39,13 @@ and this project uses [semantic versioning](https://semver.org/).
   ends a run names the cause -- throttling, network, or TLS -- with
   the fix for that cause
   ([#6](https://github.com/hjosugi/iroha-reader-cli/issues/6)).
+- Open JTalk voices can be named instead of pathed (`--ojt-voice
+  mei_happy`), are looked for in
+  `~/.local/share/iroha-reader-cli/hts-voice` as well as the system
+  directories, and a Mei voice is preferred when the flat apt default
+  is not installed. `--list-speakers --engine openjtalk` shows the
+  names, and an unknown name lists what is there
+  ([#9](https://github.com/hjosugi/iroha-reader-cli/issues/9)).
 
 ## [0.8.0] - 2026-08-26
 

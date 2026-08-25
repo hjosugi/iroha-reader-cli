@@ -108,3 +108,46 @@ def test_lrc_style_word_turns_on_word_timing() -> None:
     assert engines.EngineSettings.from_namespace(args).word_timing is True
     args = argparse.Namespace(engine="edge", lrc_style="line")
     assert engines.EngineSettings.from_namespace(args).word_timing is False
+
+
+def test_an_openjtalk_voice_can_be_named_instead_of_pathed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from iroha_reader_cli.engines import openjtalk
+
+    voice = tmp_path / "mei_normal.htsvoice"
+    voice.write_bytes(b"")
+    monkeypatch.setattr(openjtalk, "VOICE_DIRS", (tmp_path,))
+    assert openjtalk.resolve_voice("mei_normal") == str(voice)
+    assert openjtalk.resolve_voice("mei_normal.htsvoice") == str(voice)
+    assert openjtalk.resolve_voice("nothing_like_it") is None
+
+
+def test_the_default_voice_falls_back_to_mei(monkeypatch: pytest.MonkeyPatch,
+                                             tmp_path: Path) -> None:
+    from iroha_reader_cli.engines import openjtalk
+
+    (tmp_path / "nitech_jp_atr503_m001.htsvoice").write_bytes(b"")
+    mei = tmp_path / "mei_happy.htsvoice"
+    mei.write_bytes(b"")
+    monkeypatch.setattr(openjtalk, "VOICE_DIRS", (tmp_path,))
+    # The apt default is not installed at its usual path here, so the
+    # nicest installed voice wins.
+    assert openjtalk.resolve_voice(str(openjtalk.DEFAULT_VOICE)) == str(mei)
+
+
+def test_an_unknown_openjtalk_voice_lists_what_is_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from iroha_reader_cli.engines import openjtalk
+
+    (tmp_path / "mei_normal.htsvoice").write_bytes(b"")
+    (tmp_path / "dict").mkdir()
+    monkeypatch.setattr(openjtalk, "VOICE_DIRS", (tmp_path,))
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/open_jtalk")
+    with pytest.raises(EngineNotReadyError, match="Installed: mei_normal"):
+        engines.create(
+            settings(requested="openjtalk", ojt_voice="ghost",
+                     ojt_dict=str(tmp_path / "dict")),
+            japanese=True,
+        )

@@ -16,14 +16,54 @@ DEFAULT_DICT = "/var/lib/mecab/dic/open-jtalk/naist-jdic"
 DEFAULT_VOICE = (
     "/usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice"
 )
-#: Searched by --list-speakers.
-VOICE_DIRS = ("/usr/share/hts-voice", "/usr/local/share/hts-voice")
+#: Where voices are looked for, by --list-speakers and by name.
+VOICE_DIRS = (
+    Path.home() / ".local/share/iroha-reader-cli/hts-voice",
+    Path("/usr/share/hts-voice"),
+    Path("/usr/local/share/hts-voice"),
+)
+#: The apt voice is flat. MMDAgent's free "Mei" voices sound better, so
+#: they win when the default voice is not installed.
+PREFERRED = ("mei",)
 
 INSTALL_HINT = (
     "install it first (Debian/Ubuntu):\n"
     "  sudo apt install open-jtalk open-jtalk-mecab-naist-jdic "
     "hts-voice-nitech-jp-atr503-m001"
 )
+
+
+def installed_voices() -> list[Path]:
+    """Every .htsvoice file in the known directories."""
+    found: list[Path] = []
+    for root in VOICE_DIRS:
+        if root.is_dir():
+            found.extend(sorted(root.rglob("*.htsvoice")))
+    return found
+
+
+def _rank(path: Path) -> tuple[int, str]:
+    name = path.name.lower()
+    liked = 0 if any(mark in name for mark in PREFERRED) else 1
+    return liked, str(path)
+
+
+def resolve_voice(spec: str) -> str | None:
+    """Turn a path or a plain voice name into a .htsvoice path.
+
+    An unset (default) voice that is not installed falls back to the
+    nicest voice that is.
+    """
+    direct = Path(spec)
+    if direct.is_file():
+        return str(direct)
+    voices = installed_voices()
+    for voice in voices:
+        if spec in (voice.name, voice.stem):
+            return str(voice)
+    if spec == str(DEFAULT_VOICE) and voices:
+        return str(min(voices, key=_rank))
+    return None
 
 
 class OpenJTalkEngine(LocalEngine):
