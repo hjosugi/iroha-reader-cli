@@ -8,7 +8,7 @@ The command line lives in `cli`, but every piece is importable:
 
 from __future__ import annotations
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 from .document import Block, Chapter, Line
 from .engines import EngineSettings

@@ -535,7 +535,7 @@ floor at your own machine's glibc.
 
 ```sh
 uv sync              # create .venv and install everything
-uv run pytest        # 276 tests, about eight seconds
+uv run pytest        # 302 tests, about eight seconds
 uv run ruff check .
 uv run mypy
 ```
