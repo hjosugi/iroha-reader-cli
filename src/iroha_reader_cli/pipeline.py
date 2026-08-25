@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import audio, extract, segment, subtitles
+from .cache import CachedEngine, SegmentCache
 from .engines import Engine, EngineSettings, create
 from .errors import ReaderError
 from .readings import Readings
@@ -42,11 +43,15 @@ class ConvertOptions:
     readings: Readings = field(default_factory=Readings)
     #: Shown instead of the path in the log, for input that is not a real file.
     source_label: str | None = None
+    use_cache: bool = True
+    cache_dir: Path | None = None
 
     def __post_init__(self) -> None:
         # A config file or a library caller may pass plain strings.
         if self.outdir is not None:
             self.outdir = Path(self.outdir)
+        if self.cache_dir is not None:
+            self.cache_dir = Path(self.cache_dir)
         self.subtitle_formats = tuple(self.subtitle_formats)
 
     def validate(self) -> None:
@@ -131,6 +136,9 @@ def convert(path: Path, options: ConvertOptions,
     engine = create(settings, japanese=segment.has_japanese("".join(lines)))
     detail = f" ({engine.detail})" if engine.detail else ""
     reporter.info(f"  engine: {engine.name}{detail}")
+    if options.use_cache:
+        # Only the segments are cached; the join happens every time.
+        engine = CachedEngine(engine, SegmentCache(options.cache_dir))
 
     # The dictionary changes only what is spoken.
     spoken = options.readings.apply_all(lines) if options.readings else list(lines)

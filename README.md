@@ -226,6 +226,9 @@ are.
 | `--pages` | all | pdf page range: `3-10`, `5`, `3-` |
 | `--dict` | none | reading dictionary TSV (word TAB reading) |
 | `--jobs` | `4` | lines synthesized at once by the local engines. Piper loads its model per line, so lower it if memory is tight |
+| `--no-cache` | off | synthesize every line again |
+| `--cache-dir` | `~/.cache/iroha-reader-cli/segments` | where segments are cached |
+| `--clear-cache` | off | delete the cached segments and exit |
 | `--keep-code` | off | read markdown code blocks out loud too |
 | `--write-text` | off | also save the lines as `.lines.txt` |
 | `--dry-run` | off | print the lines and exit |
@@ -233,6 +236,33 @@ are.
 | `--concurrency` | `4` | parallel requests for the `edge` engine |
 
 Engine specific flags are listed under `--help`.
+
+## The segment cache
+
+Synthesis is the slow part. Every line is stored under a hash of the
+text and of every engine setting that changes how it sounds, so a
+re-run only speaks what actually changed:
+
+```
+$ iroha-reader-cli notes.md
+  lines: 240
+  engine: piper (en_US-lessac-medium)
+  cache: 236/240 lines reused
+```
+
+A line that appears twice in one document is spoken once, even on the
+first run. Cached segments live in
+`~/.cache/iroha-reader-cli/segments` and nothing evicts them yet, so:
+
+```sh
+iroha-reader-cli --clear-cache          # delete them, report what was freed
+iroha-reader-cli notes.md --no-cache    # ignore the cache for this run
+iroha-reader-cli notes.md --cache-dir /tmp/cache
+```
+
+Changing the voice, the speed, the pitch, or the voice file itself
+misses the cache on purpose. `--gap-ms`, `--bitrate`, and `--loudnorm`
+do not: they only affect the join, so they never cost a re-synthesis.
 
 ## Use it as a library
 

@@ -15,6 +15,13 @@ and this project uses [semantic versioning](https://semver.org/).
   file, so one file can hold several setups. Profile keys beat the
   top level ones, the command line beats both
   ([#10](https://github.com/hjosugi/iroha-reader-cli/issues/10)).
+- A segment cache. Each line is stored under a hash of the text and
+  of every engine setting that changes how it sounds, so editing one
+  paragraph of a long document re-synthesizes one paragraph. A line
+  that repeats within a document is spoken once even on the first
+  run. `--no-cache`, `--cache-dir`, and `--clear-cache` are there when
+  you want none of it
+  ([#4](https://github.com/hjosugi/iroha-reader-cli/issues/4)).
 
 ## [0.8.0] - 2026-08-26
 

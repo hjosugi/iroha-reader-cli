@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any
 
-from . import __version__, audio, config, engines, extract, speakers, subtitles
+from . import __version__, audio, cache, config, engines, extract, speakers, subtitles
 from .engines import EngineSettings, edge, openjtalk, piper, voicevox
 from .errors import ReaderError
 from .pipeline import AUDIO_FORMATS, ConvertOptions, convert
@@ -99,6 +99,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dict", type=Path, default=None, dest="dict_file",
                    help="reading dictionary (TSV: word<TAB>reading). "
                         "Fixes misreads; the subtitles keep the original text")
+    p.add_argument("--no-cache", dest="use_cache", action="store_false",
+                   help="synthesize every line again, ignoring the cache")
+    p.add_argument("--cache-dir", type=Path, default=None,
+                   help=f"where segments are cached (default: {cache.default_dir()})")
+    p.add_argument("--clear-cache", action="store_true",
+                   help="delete the cached segments and exit")
     p.add_argument("--jobs", type=int, default=4,
                    help="parallel lines for the local engines (default: 4)")
     p.add_argument("--keep-code", action="store_true",
@@ -216,6 +222,8 @@ def build_options(args: argparse.Namespace) -> ConvertOptions:
         pages=extract.parse_page_range(args.pages) if args.pages else None,
         keep_code=args.keep_code,
         write_text=args.write_text,
+        use_cache=args.use_cache,
+        cache_dir=args.cache_dir,
         readings=Readings.load(Path(args.dict_file)) if args.dict_file else Readings(),
     )
 
@@ -263,6 +271,11 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     if args.list_speakers:
         speakers.list_speakers(settings)
+        return EXIT_OK
+
+    if args.clear_cache:
+        files, freed = cache.SegmentCache(args.cache_dir).clear()
+        print(f"cleared {files} cached segments ({freed / 1_000_000:.1f} MB)")
         return EXIT_OK
 
     if not args.inputs:

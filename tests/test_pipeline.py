@@ -129,3 +129,24 @@ def test_pages_on_a_non_pdf_warns_and_continues(
 def test_options_are_validated(options: ConvertOptions, message: str) -> None:
     with pytest.raises(ReaderError, match=message):
         options.validate()
+
+
+def test_the_cache_makes_a_second_convert_free(tmp_path: Path,
+                                               fake_engine: FakeEngine) -> None:
+    source = write_source(tmp_path)
+    options = ConvertOptions(cache_dir=tmp_path / "cache")
+    convert(source, options)
+    assert fake_engine.spoken == ["First line.", "Second line."]
+
+    fake_engine.spoken = []
+    convert(source, options)
+    assert fake_engine.spoken == []
+
+
+def test_no_cache_always_synthesizes(tmp_path: Path, fake_engine: FakeEngine) -> None:
+    source = write_source(tmp_path)
+    options = ConvertOptions(cache_dir=tmp_path / "cache", use_cache=False)
+    convert(source, options)
+    fake_engine.spoken = []
+    convert(source, options)
+    assert len(fake_engine.spoken) == 2

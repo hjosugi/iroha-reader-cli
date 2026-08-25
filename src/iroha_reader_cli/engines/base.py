@@ -20,15 +20,37 @@ from ..reporting import Reporter
 class Engine(abc.ABC):
     """Base class for every TTS engine."""
 
-    #: Name used by --engine and in log lines.
-    name: ClassVar[str]
-    #: Extension of the per-line files this engine writes.
-    ext: ClassVar[str]
+    #: Name used by --engine and in log lines. Set on the class.
+    name: str
+    #: Extension of the per-line files this engine writes. Set on the class.
+    ext: str
+
+    #: Attributes that change speed of work, not the sound of it.
+    NON_AUDIO_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {"jobs", "concurrency", "timeout", "name", "ext",
+         "inner", "cache", "reused", "repeats"}
+    )
 
     @property
     def detail(self) -> str:
         """Voice or model shown next to the engine name. May be empty."""
         return ""
+
+    def signature(self) -> dict[str, str]:
+        """Everything about this engine that can change how a line sounds.
+
+        Used as the cache key, so a changed voice or speed misses on
+        purpose. Values that name an existing file carry its size and
+        mtime, because swapping a voice file keeps the path.
+        """
+        fields = {"engine": self.name}
+        for key, value in sorted(vars(self).items()):
+            if key in self.NON_AUDIO_FIELDS or key.startswith("_"):
+                continue
+            # Settings are scalars. Anything else is bookkeeping.
+            if isinstance(value, str | int | float | bool | Path) or value is None:
+                fields[key] = _describe(value)
+        return fields
 
     @abc.abstractmethod
     def synth_all(self, lines: Sequence[str], outdir: str,
@@ -37,6 +59,16 @@ class Engine(abc.ABC):
 
     def segment_paths(self, count: int, outdir: str) -> list[str]:
         return [str(Path(outdir) / f"seg_{i:05d}.{self.ext}") for i in range(count)]
+
+
+def _describe(value: object) -> str:
+    """Render one setting for the signature, stamping files by content."""
+    text = str(value)
+    try:
+        stat = Path(text).stat()
+    except (OSError, ValueError):
+        return text
+    return f"{text}:{stat.st_size}:{int(stat.st_mtime)}"
 
 
 class LocalEngine(Engine):

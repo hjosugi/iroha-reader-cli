@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Never touch the developer's real segment cache."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
 
 
 def _have(*commands: str) -> bool:
