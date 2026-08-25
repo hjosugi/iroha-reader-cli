@@ -1,5 +1,7 @@
 """A small local web UI.
 
+The page calls itself iroha-reader: there is no command line on it.
+
 `iroha-reader-cli --serve` opens one page in the browser: drop a
 document on it, get the audio back with the text highlighting itself
 line by line. It is the shortest way to see what the timing is for.
@@ -135,7 +137,7 @@ def _replace(source: Any, **changes: Any) -> Any:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "iroha-reader-cli"
+    server_version = "iroha-reader"
     protocol_version = "HTTP/1.1"
 
     @property

@@ -100,7 +100,7 @@ def post(url: str, body: bytes) -> tuple[int, dict[str, object]]:
 def test_the_page_is_served(running: str) -> None:
     status, body, headers = get(running + "/")
     assert status == 200
-    assert b"<title>iroha-reader-cli</title>" in body
+    assert b"<title>iroha-reader</title>" in body
     assert headers["Content-Type"].startswith("text/html")
 
 

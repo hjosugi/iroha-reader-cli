@@ -151,3 +151,56 @@ def test_an_unknown_openjtalk_voice_lists_what_is_installed(
                      ojt_dict=str(tmp_path / "dict")),
             japanese=True,
         )
+
+
+def test_speed_reaches_every_engine(monkeypatch: pytest.MonkeyPatch,
+                                    tmp_path: Path) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/anything")
+    (tmp_path / "voice.onnx").write_bytes(b"")
+
+    fast = engines.EngineSettings(speed=2.0, piper_data=tmp_path,
+                                  piper_model="voice")
+    assert fast.espeak_wpm() == engines.DEFAULT_WPM * 2
+    # Piper measures length, so twice the speed is half the length.
+    assert fast.piper_length_scale() == 0.5
+    assert fast.voicevox_speed() == 2.0
+    assert fast.edge_rate() == "+100%"
+
+    slow = engines.EngineSettings(speed=0.5)
+    assert slow.espeak_wpm() == round(engines.DEFAULT_WPM * 0.5)
+    assert slow.piper_length_scale() == 2.0
+    assert slow.edge_rate() == "-50%"
+
+
+def test_the_engine_specific_setting_wins() -> None:
+    settings = engines.EngineSettings(speed=2.0, wpm=100, piper_length=3.0,
+                                      vv_speed=0.8, rate="+5%")
+    assert settings.espeak_wpm() == 100
+    assert settings.piper_length_scale() == 3.0
+    assert settings.voicevox_speed() == 0.8
+    assert settings.edge_rate() == "+5%"
+
+
+def test_the_default_speed_changes_nothing() -> None:
+    plain = engines.EngineSettings()
+    assert plain.espeak_wpm() == engines.DEFAULT_WPM
+    assert plain.piper_length_scale() == 1.0
+    assert plain.voicevox_speed() == 1.0
+    assert plain.edge_rate() == "+0%"
+
+
+@pytest.mark.parametrize("speed", [0.0, -1.0])
+def test_a_speed_of_zero_or_less_is_rejected(speed: float) -> None:
+    from iroha_reader_cli.errors import ReaderError
+
+    with pytest.raises(ReaderError, match="--speed"):
+        engines.EngineSettings(speed=speed)
+
+
+def test_speed_reaches_the_built_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/espeak-ng")
+    engine = engines.create(settings(requested="espeak", speed=1.5), japanese=False)
+    assert engine.wpm == round(engines.DEFAULT_WPM * 1.5)  # type: ignore[attr-defined]
+
+    edge_engine = engines.create(settings(requested="edge", speed=1.5), japanese=False)
+    assert edge_engine.rate == "+50%"  # type: ignore[attr-defined]

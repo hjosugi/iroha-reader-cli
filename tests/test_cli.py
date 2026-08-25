@@ -228,3 +228,19 @@ def test_chapters_are_on_by_default() -> None:
     options = cli.build_options(cli.parse_args(["a.md"]))
     assert options.chapters is True
     assert options.split_level is None
+
+
+def test_the_help_uses_the_name_it_was_called_with(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["/usr/local/bin/irh", "notes.md"])
+    assert cli.prog_name() == "irh"
+    assert cli.build_parser().prog == "irh"
+
+
+def test_an_unexpected_name_falls_back_to_the_full_one(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Under pytest, argv[0] is pytest; the help should not say that.
+    monkeypatch.setattr(sys, "argv", ["/usr/bin/pytest"])
+    assert cli.prog_name() == cli.PROG

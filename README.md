@@ -12,7 +12,7 @@ Read a document out loud and get the subtitles for free.
   from the headings
 
 ```sh
-iroha-reader-cli notes.md
+iroha-reader-cli notes.md      # or just: irh notes.md
 # notes.mp3 + notes.lrc, next to the input
 
 iroha-reader-cli --serve
@@ -46,7 +46,8 @@ The test suite checks that claim on every run.
 
 ## The reading room
 
-`--serve` opens one page on this machine. Drop a document on it and
+`--serve` opens one page on this machine -- it calls itself
+**iroha-reader**, since there is no command line on it. Drop a document on it and
 it comes back read out loud, with the text keeping time and every
 line clickable:
 
@@ -111,7 +112,7 @@ Requirements: Linux, Python 3.11+, and `ffmpeg`. `poppler-utils` is
 worth adding if you read PDFs.
 
 ```sh
-# the tool itself
+# the tool itself (installs both `iroha-reader-cli` and the short `irh`)
 uv tool install git+https://github.com/hjosugi/iroha-reader-cli
 # or: pipx install git+https://github.com/hjosugi/iroha-reader-cli
 
@@ -173,10 +174,14 @@ like `--edge-pitch=-20Hz`.
 | Engine | Voice | Speed | Pitch | Volume |
 | --- | --- | --- | --- | --- |
 | openjtalk | `--ojt-voice file.htsvoice` | `--speed 1.5` | `--ojt-halftone 3.0` | `--ojt-volume-db=-6` |
-| piper | `--piper-model en_US-amy-medium` | `--piper-length 1.2` (bigger is slower) | - | - |
-| espeak | `--lang ja+f3` (variants: `+f1..f5`, `+m1..m7`) | `--wpm 220` | `--es-pitch 80` | `--es-amp 150` |
-| voicevox | `--speaker 8` | `--vv-speed 1.2` | `--vv-pitch 0.05` | `--vv-volume 0.9` |
-| edge | `--voice ja-JP-KeitaNeural` | `--rate +10%` | `--edge-pitch +20Hz` | `--edge-volume +20%` |
+| piper | `--piper-model en_US-amy-medium` | `--speed 1.5`, or `--piper-length 1.2` (bigger is slower) | - | - |
+| espeak | `--lang ja+f3` (variants: `+f1..f5`, `+m1..m7`) | `--speed 1.5`, or `--wpm 220` | `--es-pitch 80` | `--es-amp 150` |
+| voicevox | `--speaker 8` | `--speed 1.5`, or `--vv-speed 1.2` | `--vv-pitch 0.05` | `--vv-volume 0.9` |
+| edge | `--voice ja-JP-KeitaNeural` | `--speed 1.5`, or `--rate +10%` | `--edge-pitch +20Hz` | `--edge-volume +20%` |
+
+`--speed 1.3` works with every engine: each one is told in its own
+units (words per minute, length scale, speedScale, a percentage), and
+the engine specific flag above wins when you set it.
 
 Extras: `--vv-intonation 1.3` makes VOICEVOX more expressive, and any
 `.htsvoice` file works with `--ojt-voice` (the free MMDAgent "Mei"
@@ -307,6 +312,7 @@ are.
 | `--port` | `8765` | port for `--serve` |
 | `--host` | `127.0.0.1` | address for `--serve` |
 | `--no-browser` | off | do not open a browser for `--serve` |
+| `--speed` | `1.0` | speech rate for any engine, 0.5 slow to 2.0 fast |
 | `--engine` | `auto` | `auto` / `openjtalk` / `piper` / `espeak` / `voicevox` / `edge` |
 | `-o`, `--outdir` | next to the input | output directory |
 | `--name` | the input name | output base name (one input file only) |

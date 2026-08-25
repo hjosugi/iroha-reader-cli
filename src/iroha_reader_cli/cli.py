@@ -38,6 +38,14 @@ from .reporting import Reporter
 from .segment import DEFAULT_MAX_CHARS
 
 PROG = "iroha-reader-cli"
+#: The same tool, for people who type it a lot.
+SHORT_PROG = "irh"
+
+
+def prog_name() -> str:
+    """Whichever of our two names was used to start this."""
+    called = Path(sys.argv[0]).name if sys.argv else ""
+    return called if called in (PROG, SHORT_PROG) else PROG
 
 #: Config keys whose name differs from the argparse destination.
 CONFIG_ALIASES = {"dict": "dict_file", "format": "audio_format"}
@@ -70,7 +78,7 @@ class _CommaAppend(argparse.Action):
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog=PROG,
+        prog=prog_name(),
         description="Convert md / epub / pdf / txt into audio plus synced subtitles.",
     )
     p.add_argument("inputs", nargs="*", type=Path,
@@ -157,15 +165,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-q", "--quiet", action="store_true",
                    help="no progress output, errors only")
     p.add_argument("-V", "--version", action="version",
-                   version=f"{PROG} {__version__}")
+                   version=f"{PROG} {__version__}")  # always the full name
+
+    p.add_argument("--speed", type=float, default=1.0,
+                   help="speech rate for any engine, 0.5 slow to 2.0 fast "
+                        "(default: 1.0). The engine specific settings below "
+                        "win over it")
 
     g = p.add_argument_group("openjtalk options (free, local, Japanese)")
     g.add_argument("--ojt-dict", default=openjtalk.DEFAULT_DICT,
                    help="dictionary directory")
     g.add_argument("--ojt-voice", default=openjtalk.DEFAULT_VOICE,
                    help=".htsvoice file. Swap it to change the voice")
-    g.add_argument("--speed", type=float, default=1.0,
-                   help="speech rate, 0.5 slow to 2.0 fast (default: 1.0)")
     g.add_argument("--ojt-halftone", type=float, default=0.0,
                    help="pitch shift in half tones, like 3.0 or -2.0 (default: 0.0)")
     g.add_argument("--ojt-volume-db", type=float, default=0.0,
@@ -176,15 +187,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help=f"voice name or .onnx path (default: {piper.DEFAULT_MODEL})")
     g.add_argument("--piper-data", type=Path, default=piper.DEFAULT_DATA_DIR,
                    help="directory with downloaded .onnx voices")
-    g.add_argument("--piper-length", type=float, default=1.0,
-                   help="length scale, bigger is slower (default: 1.0)")
+    g.add_argument("--piper-length", type=float, default=None,
+                   help="length scale, bigger is slower (default: from --speed)")
 
     g = p.add_argument_group("espeak options (free, local, many languages)")
     g.add_argument("--lang", default=None,
                    help="voice/language, like ja or en. Variants work too, "
                         "like ja+f3 (female 3) or en+m2 (default: auto)")
-    g.add_argument("--wpm", type=int, default=175,
-                   help="words per minute (default: 175)")
+    g.add_argument("--wpm", type=int, default=None,
+                   help=f"words per minute (default: {engines.DEFAULT_WPM} "
+                        "scaled by --speed)")
     g.add_argument("--es-pitch", type=int, default=None,
                    help="pitch 0-99 (default: the engine default, 50)")
     g.add_argument("--es-amp", type=int, default=None,
@@ -197,7 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="style id, speaker name, or name:style. Examples: "
                         "8 / Zundamon / Zundamon:Amaama (default: 3). "
                         "See --list-speakers")
-    g.add_argument("--vv-speed", type=float, default=1.0, help="speedScale (default: 1.0)")
+    g.add_argument("--vv-speed", type=float, default=None,
+                   help="speedScale (default: from --speed)")
     g.add_argument("--vv-pitch", type=float, default=0.0,
                    help="pitchScale, small values like 0.05 (default: 0.0)")
     g.add_argument("--vv-intonation", type=float, default=1.0,
@@ -209,8 +222,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--voice", default=None,
                    help=f"voice name (default: {edge.DEFAULT_VOICE_JA} for "
                         f"Japanese, {edge.DEFAULT_VOICE_EN} otherwise)")
-    g.add_argument("--rate", default="+0%",
-                   help="speech rate, like +10%% (default: +0%%)")
+    g.add_argument("--rate", default=None,
+                   help="speech rate, like +10%% (default: from --speed)")
     g.add_argument("--edge-pitch", default="+0Hz",
                    help="pitch, like +20Hz or -20Hz (default: +0Hz)")
     g.add_argument("--edge-volume", default="+0%",
@@ -334,7 +347,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if not args.inputs:
-        raise ReaderError(f"no input files. See {PROG} --help")
+        raise ReaderError(f"no input files. See {prog_name()} --help")
     if args.name and len(args.inputs) > 1:
         raise ReaderError("--name works with one input file only")
 

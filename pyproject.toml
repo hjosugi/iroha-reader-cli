@@ -38,6 +38,8 @@ Changelog = "https://github.com/hjosugi/iroha-reader-cli/blob/main/CHANGELOG.md"
 
 [project.scripts]
 iroha-reader-cli = "iroha_reader_cli.cli:main"
+# Short alias, for the many times a day you type it.
+irh = "iroha_reader_cli.cli:main"
 
 [dependency-groups]
 dev = [
