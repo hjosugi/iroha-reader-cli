@@ -458,15 +458,16 @@ chmod +x iroha-reader-cli-x86_64.AppImage
 ```
 
 The binary still calls `ffmpeg` at run time, plus `espeak-ng`,
-`open_jtalk`, or `piper` for the engine you use. Build on the oldest
-Linux you want to support: the glibc of the build machine sets the
-floor.
+`open_jtalk`, or `piper` for the engine you use. The released ones are
+built inside `manylinux_2_28`, so they need only glibc 2.14: Ubuntu
+18.04, Debian 10, and RHEL 8 onwards. Building them yourself puts the
+floor at your own machine's glibc.
 
 ## Development
 
 ```sh
 uv sync              # create .venv and install everything
-uv run pytest        # 202 tests, about six seconds
+uv run pytest        # 233 tests, about ten seconds
 uv run ruff check .
 uv run mypy
 ```
