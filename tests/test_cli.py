@@ -213,3 +213,18 @@ def test_the_profile_table_is_not_read_as_a_setting(tmp_path: Path,
     config.write_text('[profile.study]\nwpm = 220\n', encoding="utf-8")
     cli.parse_args(["a.md", "--config", str(config)])
     assert "unknown config key" not in capsys.readouterr().err
+
+
+def test_chapter_flags_reach_the_options() -> None:
+    options = cli.build_options(cli.parse_args(
+        ["a.md", "--no-chapters", "--chapter-level", "3", "--split-by-heading", "2"]
+    ))
+    assert options.chapters is False
+    assert options.chapter_level == 3
+    assert options.split_level == 2
+
+
+def test_chapters_are_on_by_default() -> None:
+    options = cli.build_options(cli.parse_args(["a.md"]))
+    assert options.chapters is True
+    assert options.split_level is None

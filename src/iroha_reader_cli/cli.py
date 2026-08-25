@@ -17,7 +17,12 @@ from typing import IO, Any
 from . import __version__, audio, cache, config, engines, extract, speakers, subtitles
 from .engines import EngineSettings, edge, openjtalk, piper, voicevox
 from .errors import ReaderError
-from .pipeline import AUDIO_FORMATS, ConvertOptions, convert
+from .pipeline import (
+    AUDIO_FORMATS,
+    DEFAULT_CHAPTER_LEVEL,
+    ConvertOptions,
+    convert_all,
+)
 from .readings import Readings
 from .reporting import Reporter
 from .segment import DEFAULT_MAX_CHARS
@@ -86,6 +91,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="subtitle formats: "
                         f"{', '.join(subtitles.FORMATS)}. Repeat or use commas, "
                         "like --subs lrc,srt (default: lrc)")
+    p.add_argument("--no-chapters", dest="chapters", action="store_false",
+                   help="do not write markdown headings into the mp3 as chapters")
+    p.add_argument("--chapter-level", type=int, default=DEFAULT_CHAPTER_LEVEL,
+                   help="headings of this level or shallower become chapters "
+                        f"(default: {DEFAULT_CHAPTER_LEVEL})")
+    p.add_argument("--split-by-heading", dest="split_level", type=int, default=None,
+                   metavar="LEVEL",
+                   help="write one audio file per heading of this level, "
+                        "instead of one for the whole document")
     p.add_argument("--lrc-style", choices=["line", "word"], default="line",
                    help="line: one timestamp per line. word: a timestamp per "
                         "word as well (Enhanced LRC and karaoke WebVTT). "
@@ -236,6 +250,9 @@ def build_options(args: argparse.Namespace) -> ConvertOptions:
         write_text=args.write_text,
         use_cache=args.use_cache,
         cache_dir=args.cache_dir,
+        chapters=args.chapters,
+        chapter_level=args.chapter_level,
+        split_level=args.split_level,
         readings=Readings.load(Path(args.dict_file)) if args.dict_file else Readings(),
     )
 
@@ -271,7 +288,7 @@ def _dry_run(paths: Sequence[Path], options: ConvertOptions,
     for path in paths:
         reporter.info(f"* {options.source_label or path}")
         for line in read_lines(path, options, reporter):
-            print(line)
+            print(line.text)
     return EXIT_OK
 
 
@@ -307,7 +324,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             if args.dry_run:
                 return _dry_run([path], options, reporter)
             audio.check_tools()
-            convert(path, options, settings, reporter)
+            convert_all(path, options, settings, reporter)
         return EXIT_OK
 
     if args.dry_run:
@@ -315,7 +332,7 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     audio.check_tools()
     for path in args.inputs:
-        convert(path, options, settings, reporter)
+        convert_all(path, options, settings, reporter)
     return EXIT_OK
 
 

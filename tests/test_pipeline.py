@@ -10,11 +10,12 @@ import pytest
 from iroha_reader_cli import audio, pipeline
 from iroha_reader_cli.engines.base import Engine, Segments
 from iroha_reader_cli.errors import ReaderError
-from iroha_reader_cli.pipeline import ConvertOptions, convert
+from iroha_reader_cli.pipeline import ConvertOptions, convert, convert_all
 from iroha_reader_cli.readings import Readings
 from iroha_reader_cli.reporting import Reporter
 
 SEGMENT_SEC = 2.0
+WRITTEN_CHAPTERS: list[tuple[str, list[object], str]] = []
 
 
 class FakeEngine(Engine):
@@ -48,6 +49,10 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> FakeEngine:
         audio, "concat",
         lambda paths, out, **_kw: Path(out).write_bytes(b"audio" * len(paths)),
     )
+    monkeypatch.setattr(audio, "write_chapters",
+                        lambda path, chapters, title="": WRITTEN_CHAPTERS.append(
+                            (path, list(chapters), title)))
+    WRITTEN_CHAPTERS.clear()
     return engine
 
 
@@ -68,7 +73,7 @@ def test_convert_writes_audio_and_the_asked_for_subtitles(
     assert [p.suffix for p in result.subtitle_files] == [".lrc", ".srt", ".vtt"]
     assert all(p.exists() for p in result.subtitle_files)
     assert result.engine == "fake"
-    assert result.lines == ("First line.", "Second line.")
+    assert result.texts == ("First line.", "Second line.")
 
 
 def test_timeline_matches_the_gap_setting(tmp_path: Path, fake_engine: FakeEngine) -> None:
@@ -85,7 +90,7 @@ def test_readings_change_the_audio_but_not_the_subtitles(
     result = convert(source, options)
 
     assert fake_engine.spoken == ["データウェアハウス is here."]
-    assert result.lines == ("DWH is here.",)
+    assert result.texts == ("DWH is here.",)
     assert "DWH is here." in result.subtitle_files[0].read_text(encoding="utf-8")
 
 
@@ -150,3 +155,98 @@ def test_no_cache_always_synthesizes(tmp_path: Path, fake_engine: FakeEngine) ->
     fake_engine.spoken = []
     convert(source, options)
     assert len(fake_engine.spoken) == 2
+
+
+CHAPTERED = """# Opening
+
+First words.
+
+## Chapter One
+
+It begins here.
+
+## Chapter Two
+
+It ends here.
+"""
+
+
+def write_book(tmp_path: Path) -> Path:
+    path = tmp_path / "book.md"
+    path.write_text(CHAPTERED, encoding="utf-8")
+    return path
+
+
+def test_headings_become_chapter_marks(tmp_path: Path, fake_engine: FakeEngine) -> None:
+    result = convert(write_book(tmp_path), ConvertOptions(gap_ms=0))
+
+    titles = [mark.title for mark in result.chapters]
+    assert titles == ["Opening", "Chapter One", "Chapter Two"]
+    # Six lines of two seconds each, three chapters of two lines.
+    assert [mark.start for mark in result.chapters] == [0.0, 4.0, 8.0]
+    assert result.chapters[-1].end == pytest.approx(12.0)
+    assert WRITTEN_CHAPTERS and WRITTEN_CHAPTERS[0][0] == str(result.audio)
+
+
+def test_no_chapters_leaves_the_tags_alone(tmp_path: Path,
+                                           fake_engine: FakeEngine) -> None:
+    result = convert(write_book(tmp_path), ConvertOptions(chapters=False))
+    assert result.chapters == ()
+    assert WRITTEN_CHAPTERS == []
+
+
+def test_wav_gets_no_chapters(tmp_path: Path, fake_engine: FakeEngine) -> None:
+    # WAV has nowhere to put them.
+    result = convert(write_book(tmp_path), ConvertOptions(audio_format="wav"))
+    assert result.chapters == ()
+    assert WRITTEN_CHAPTERS == []
+
+
+def test_a_document_without_headings_gets_no_chapters(tmp_path: Path,
+                                                      fake_engine: FakeEngine) -> None:
+    assert convert(write_source(tmp_path), ConvertOptions()).chapters == ()
+
+
+def test_the_chapter_level_decides_how_many(tmp_path: Path,
+                                            fake_engine: FakeEngine) -> None:
+    # Only one level 1 heading, so there is nothing to divide.
+    result = convert(write_book(tmp_path), ConvertOptions(chapter_level=1))
+    assert result.chapters == ()
+
+    source = tmp_path / "two.md"
+    source.write_text("# One\n\nText.\n\n# Two\n\nMore.\n", encoding="utf-8")
+    result = convert(source, ConvertOptions(chapter_level=1))
+    assert [mark.title for mark in result.chapters] == ["One", "Two"]
+
+
+def test_split_by_heading_writes_one_file_per_chapter(
+    tmp_path: Path, fake_engine: FakeEngine
+) -> None:
+    results = convert_all(write_book(tmp_path), ConvertOptions(split_level=2))
+
+    assert [result.audio.name for result in results] == [
+        "book-01-Opening.mp3",
+        "book-02-Chapter-One.mp3",
+        "book-03-Chapter-Two.mp3",
+    ]
+    assert all(result.audio.exists() for result in results)
+    assert [result.subtitle_files[0].name for result in results] == [
+        "book-01-Opening.lrc",
+        "book-02-Chapter-One.lrc",
+        "book-03-Chapter-Two.lrc",
+    ]
+    # Each part covers its own lines only.
+    assert results[1].texts == ("Chapter One", "It begins here.")
+
+
+def test_without_splitting_convert_all_returns_one(tmp_path: Path,
+                                                   fake_engine: FakeEngine) -> None:
+    results = convert_all(write_book(tmp_path), ConvertOptions())
+    assert len(results) == 1
+    assert results[0].audio.name == "book.mp3"
+
+
+@pytest.mark.parametrize("level", [0, 7])
+def test_a_silly_heading_level_is_rejected(level: int) -> None:
+    with pytest.raises(ReaderError, match="between 1 and 6"):
+        ConvertOptions(split_level=level).validate()

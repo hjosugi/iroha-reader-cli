@@ -14,7 +14,8 @@ import pytest
 from conftest import requires_espeak, requires_ffmpeg
 from iroha_reader_cli import audio
 from iroha_reader_cli.engines import EngineSettings
-from iroha_reader_cli.pipeline import ConvertOptions, convert
+from iroha_reader_cli.pipeline import ConvertOptions, convert, convert_all
+from iroha_reader_cli.proc import run
 
 TEXT = """# Sample
 
@@ -78,3 +79,51 @@ def test_the_reading_dictionary_reaches_the_engine(source: Path, tmp_path: Path)
     # The longer spoken word makes the audio longer, but the text is untouched.
     assert swapped.timeline.total > plain.timeline.total
     assert swapped.lines == plain.lines
+
+
+BOOK = """# Opening
+
+The first words of the book.
+
+## Chapter One
+
+It begins here, quietly.
+
+## Chapter Two
+
+And it ends here.
+"""
+
+
+def test_chapters_reach_the_mp3(tmp_path: Path) -> None:
+    source = tmp_path / "book.md"
+    source.write_text(BOOK, encoding="utf-8")
+    result = convert(source, ConvertOptions(), EngineSettings(requested="espeak"))
+
+    assert [mark.title for mark in result.chapters] == [
+        "Opening", "Chapter One", "Chapter Two",
+    ]
+    probe = run([
+        "ffprobe", "-v", "error", "-show_chapters", "-of", "compact",
+        str(result.audio),
+    ]).stdout.decode()
+    assert probe.count("chapter|") == 3
+    assert "tag:title=Chapter Two" in probe
+    # The last chapter ends inside the file, not past it.
+    assert result.chapters[-1].end <= audio.duration_sec(str(result.audio)) + 0.3
+
+
+def test_splitting_writes_one_playable_file_per_chapter(tmp_path: Path) -> None:
+    source = tmp_path / "book.md"
+    source.write_text(BOOK, encoding="utf-8")
+    results = convert_all(
+        source,
+        ConvertOptions(split_level=2, audio_format="wav", outdir=tmp_path / "parts"),
+        EngineSettings(requested="espeak"),
+    )
+
+    assert len(results) == 3
+    for result in results:
+        assert audio.duration_sec(str(result.audio)) > 0.5
+        # Every part starts its own clock.
+        assert result.timeline.starts[0] == 0.0

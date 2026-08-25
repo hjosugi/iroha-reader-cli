@@ -47,3 +47,14 @@ def test_segment_drops_chunks_without_words() -> None:
 def test_segment_rejects_a_bad_width() -> None:
     with pytest.raises(ValueError, match="max_chars"):
         segment("text", max_chars=0)
+
+
+def test_only_the_first_line_of_a_heading_is_marked() -> None:
+    from iroha_reader_cli.document import Block
+    from iroha_reader_cli.segment import segment_blocks
+
+    blocks = [Block("A very long heading that has to wrap somewhere", heading=2),
+              Block("Body text.")]
+    lines = segment_blocks(blocks, max_chars=20)
+    assert lines[0].heading == 2
+    assert [line.heading for line in lines[1:]] == [None] * (len(lines) - 1)

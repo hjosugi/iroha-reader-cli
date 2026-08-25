@@ -158,3 +158,29 @@ def test_an_unknown_backend_is_rejected(tmp_path: Path) -> None:
 
 class _Output:
     stdout = b"stub"
+
+
+def test_markdown_blocks_keep_heading_levels() -> None:
+    blocks = extract_module.markdown_blocks(
+        "# Title\n\nIntro text.\n\n## Section\n\n- item one\n- item two\n"
+    )
+    assert [(b.heading, b.text) for b in blocks] == [
+        (1, "Title"),
+        (None, "Intro text."),
+        (2, "Section"),
+        (None, "item one"),
+        (None, "item two"),
+    ]
+
+
+def test_a_setext_style_hash_suffix_is_dropped() -> None:
+    blocks = extract_module.markdown_blocks("### Heading ###\n")
+    assert [(b.heading, b.text) for b in blocks] == [(3, "Heading")]
+
+
+def test_extract_blocks_wraps_plain_text_in_one_block(tmp_path: Path) -> None:
+    path = tmp_path / "a.txt"
+    path.write_text("Line one.\n\nLine two.\n", encoding="utf-8")
+    blocks = extract_module.extract_blocks(path)
+    assert len(blocks) == 1
+    assert blocks[0].heading is None

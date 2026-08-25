@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from .document import Block
 from .errors import MissingCommandError, ReaderError, UnsupportedInputError
 from .proc import run
 
@@ -29,30 +30,71 @@ def read_text_file(path: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def strip_markdown(text: str, keep_code: bool = False) -> str:
-    """Remove markdown syntax and keep the readable text."""
+_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
+_LIST_ITEM = re.compile(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+")
+_RULE = re.compile(r"^\s*[-*_]{3,}\s*$")
+_QUOTE = re.compile(r"^\s*>\s?")
+
+
+def _clean_inline(text: str) -> str:
+    """Strip the markup that lives inside a line."""
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)   # images -> alt text
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)    # links -> label
+    text = text.replace("|", " ")                           # table pipes
+    text = re.sub(r"`([^`]*)`", r"\1", text)                # inline code
+    text = re.sub(r"(\*\*|__)(.*?)\1", r"\2", text, flags=re.S)  # bold
+    text = re.sub(r"\*([^*\n]+)\*", r"\1", text)           # italic (star only)
+    text = re.sub(r"<[^>]+>", "", text)                     # html tags
+    return text.strip()
+
+
+def markdown_blocks(text: str, keep_code: bool = False) -> list[Block]:
+    """Split markdown into paragraphs, remembering which ones are headings.
+
+    Headings and list items each become their own block, so each one
+    lands on its own subtitle line.
+    """
     if keep_code:
         # Keep the code lines, drop only the fence markers.
         text = re.sub(r"^```[^\n]*$", "", text, flags=re.M)
     else:
         # Drop whole code blocks. Code is noise when spoken.
         text = _CODE_FENCE.sub("", text)
-    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)           # html comments
-    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)        # images -> alt text
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)         # links -> label
-    # Headings and list items become their own paragraphs so that each
-    # one lands on its own subtitle line.
-    text = re.sub(r"^#{1,6}\s*(.+)$", r"\n\1\n", text, flags=re.M)
-    text = re.sub(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+", "\n", text, flags=re.M)
-    text = re.sub(r"^>\s?", "", text, flags=re.M)                # blockquotes
-    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.M)       # horizontal rules
-    text = _TABLE_SEP.sub("", text)                              # table separators
-    text = text.replace("|", " ")                                # table pipes
-    text = re.sub(r"`([^`]*)`", r"\1", text)                     # inline code
-    text = re.sub(r"(\*\*|__)(.*?)\1", r"\2", text, flags=re.S)  # bold
-    text = re.sub(r"\*([^*\n]+)\*", r"\1", text)                 # italic (star only)
-    text = re.sub(r"<[^>]+>", "", text)                          # html tags
-    return text
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)   # html comments
+    text = _TABLE_SEP.sub("", text)                      # table separator rows
+
+    blocks: list[Block] = []
+    buffer: list[str] = []
+
+    def flush() -> None:
+        joined = _clean_inline(" ".join(part.strip() for part in buffer)).strip()
+        buffer.clear()
+        if joined:
+            blocks.append(Block(joined))
+
+    for raw in text.splitlines():
+        line = _QUOTE.sub("", raw)
+        heading = _HEADING.match(line)
+        if heading:
+            flush()
+            title = _clean_inline(heading.group(2))
+            if title:
+                blocks.append(Block(title, heading=len(heading.group(1))))
+            continue
+        if not line.strip() or _RULE.match(line):
+            flush()
+            continue
+        if _LIST_ITEM.match(line):
+            flush()
+            line = _LIST_ITEM.sub("", line)
+        buffer.append(line)
+    flush()
+    return blocks
+
+
+def strip_markdown(text: str, keep_code: bool = False) -> str:
+    """Remove markdown syntax and keep the readable text."""
+    return "\n\n".join(block.text for block in markdown_blocks(text, keep_code))
 
 
 PDF_BACKENDS = ("auto", "pdftotext", "pypdf")
@@ -135,6 +177,21 @@ def parse_page_range(spec: str) -> tuple[int, int | None]:
 
 #: What --type accepts for stdin, mapped to the suffix used internally.
 INPUT_TYPES = ("md", "txt", "pdf")
+
+
+def extract_blocks(path: Path, keep_code: bool = False,
+                   pages: tuple[int, int | None] | None = None,
+                   pdf_backend: str = "auto") -> list[Block]:
+    """Extract a document as blocks, keeping markdown heading levels.
+
+    Formats that carry no structure of their own come back as one block.
+    """
+    if path.suffix.lower() in MARKDOWN_SUFFIXES:
+        if not path.exists():
+            raise ReaderError(f"file not found: {path}")
+        return markdown_blocks(read_text_file(path), keep_code=keep_code)
+    return [Block(extract(path, keep_code=keep_code, pages=pages,
+                          pdf_backend=pdf_backend))]
 
 
 def extract(path: Path, keep_code: bool = False,

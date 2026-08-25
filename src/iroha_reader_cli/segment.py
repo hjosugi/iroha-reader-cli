@@ -7,6 +7,9 @@ cut up.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
+from .document import Block, Line
 
 DEFAULT_MAX_CHARS = 60
 
@@ -49,6 +52,20 @@ def wrap(line: str, max_chars: int) -> list[str]:
     if rest:
         chunks.append(rest)
     return chunks
+
+
+def segment_blocks(blocks: Sequence[Block],
+                   max_chars: int = DEFAULT_MAX_CHARS) -> list[Line]:
+    """Cut every block into subtitle lines, keeping the heading levels.
+
+    Only the first line of a heading stays marked: a heading that wraps
+    is still one heading.
+    """
+    lines: list[Line] = []
+    for block in blocks:
+        for index, chunk in enumerate(segment(block.text, max_chars)):
+            lines.append(Line(chunk, block.heading if index == 0 else None))
+    return lines
 
 
 def segment(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> list[str]:

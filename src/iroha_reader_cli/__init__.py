@@ -10,6 +10,7 @@ from __future__ import annotations
 
 __version__ = "0.8.0"
 
+from .document import Block, Chapter, Line
 from .engines import EngineSettings
 from .errors import (
     CommandFailedError,
@@ -18,17 +19,20 @@ from .errors import (
     ReaderError,
     UnsupportedInputError,
 )
-from .pipeline import ConvertOptions, ConvertResult, convert
+from .pipeline import ConvertOptions, ConvertResult, convert, convert_all
 from .readings import Readings
 from .reporting import Reporter
 from .timeline import Timeline
 
 __all__ = [
+    "Block",
+    "Chapter",
     "CommandFailedError",
     "ConvertOptions",
     "ConvertResult",
     "EngineNotReadyError",
     "EngineSettings",
+    "Line",
     "MissingCommandError",
     "ReaderError",
     "Readings",
@@ -37,4 +41,5 @@ __all__ = [
     "UnsupportedInputError",
     "__version__",
     "convert",
+    "convert_all",
 ]

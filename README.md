@@ -8,7 +8,8 @@ Read a document out loud and get the subtitles for free.
 
 - **In:** `.md` / `.pdf` / `.txt`, or `-` for stdin
 - **Out:** one audio file (`.mp3` or `.wav`) plus timed text
-  (`.lrc` by default, `.srt` and `.vtt` on request)
+  (`.lrc` by default, `.srt` and `.vtt` on request), with chapters
+  from the headings
 
 ```sh
 iroha-reader-cli notes.md
@@ -288,6 +289,9 @@ are.
 | `--bitrate` | `64k` | mp3 bitrate, like `128k` |
 | `--loudnorm` | off | normalize loudness (ffmpeg `loudnorm`) |
 | `--subs` | `lrc` | subtitle formats: `--subs lrc,srt,vtt` |
+| `--chapter-level` | `2` | headings this deep or shallower become chapters |
+| `--no-chapters` | off | do not write chapters into the mp3 |
+| `--split-by-heading` | off | one audio file per heading of that level |
 | `--lrc-style` | `line` | `word` adds a timestamp per word (Enhanced LRC, karaoke VTT). Needs `--engine edge` |
 | `--gap-ms` | `200` | silence between lines, in ms |
 | `--max-chars` | `60` | max characters per subtitle line |
@@ -307,6 +311,40 @@ are.
 | `--min-interval-ms` | `0` | least time between `edge` requests |
 
 Engine specific flags are listed under `--help`.
+
+## Chapters
+
+Markdown headings become real chapters in the mp3, so a player can
+jump between them:
+
+```sh
+iroha-reader-cli book.md
+#   chapters: 4
+```
+
+```
+$ ffprobe -show_chapters book.mp3
+[CHAPTER] 0.000 -> 17.720  はじめに
+[CHAPTER] 17.720 -> 36.549  第一章 出会い
+...
+```
+
+`--chapter-level N` decides how deep to go (2 by default: `#` and
+`##`), and `--no-chapters` leaves the tags alone. WAV has nowhere to
+put them, so it never gets any.
+
+One file per chapter instead of one long one:
+
+```sh
+iroha-reader-cli book.md --split-by-heading 2
+# book-01-はじめに.mp3 + .lrc
+# book-02-第一章-出会い.mp3 + .lrc
+# ...
+```
+
+Each part gets its own audio and its own subtitles, timed from zero.
+Splitting after a normal run costs nothing extra: the segments are
+already cached.
 
 ## The segment cache
 

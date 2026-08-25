@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import CommandFailedError, MissingCommandError
@@ -59,6 +60,59 @@ def make_silence(path: str, ms: int, rate: int) -> None:
     ])
 
 
+@dataclass(frozen=True, slots=True)
+class ChapterMark:
+    """One chapter of the finished audio file."""
+
+    title: str
+    start: float
+    end: float
+
+
+def _ffmetadata(chapters: Sequence[ChapterMark], title: str = "") -> str:
+    """Render chapters in ffmpeg's metadata format."""
+
+    def escape(text: str) -> str:
+        # = ; # and \ are the special characters of this format.
+        for mark in ("\\", "=", ";", "#", "\n"):
+            text = text.replace(mark, "\\" + mark)
+        return text
+
+    out = [";FFMETADATA1"]
+    if title:
+        out.append(f"title={escape(title)}")
+    for chapter in chapters:
+        out += [
+            "",
+            "[CHAPTER]",
+            "TIMEBASE=1/1000",
+            f"START={max(0, round(chapter.start * 1000))}",
+            f"END={max(0, round(chapter.end * 1000))}",
+            f"title={escape(chapter.title)}",
+        ]
+    return "\n".join(out) + "\n"
+
+
+def write_chapters(path: str, chapters: Sequence[ChapterMark],
+                   title: str = "") -> None:
+    """Write chapter marks into an existing audio file, in place."""
+    target = Path(path)
+    meta = target.with_suffix(target.suffix + ".ffmeta")
+    staged = target.with_suffix(target.suffix + ".chapters" + target.suffix)
+    try:
+        meta.write_text(_ffmetadata(chapters, title), encoding="utf-8")
+        run([
+            "ffmpeg", "-y", "-v", "error",
+            "-i", str(target), "-i", str(meta),
+            "-map_metadata", "1", "-map", "0:a", "-codec", "copy",
+            str(staged),
+        ])
+        staged.replace(target)
+    finally:
+        meta.unlink(missing_ok=True)
+        staged.unlink(missing_ok=True)
+
+
 def concat(paths: Sequence[str], out_path: str,
            bitrate: str = "64k", loudnorm: bool = False) -> None:
     """Join segment files into one audio file."""
@@ -75,8 +129,8 @@ def concat(paths: Sequence[str], out_path: str,
             "ffmpeg", "-y", "-v", "error",
             "-f", "concat", "-safe", "0",
             "-i", list_path,
-            "-ac", "1",
         ]
+        argv += ["-ac", "1"]
         if loudnorm:
             # A two-pass measure would be more exact. One pass is enough here.
             argv += ["-af", "loudnorm"]
@@ -85,4 +139,4 @@ def concat(paths: Sequence[str], out_path: str,
         argv.append(out_path)
         run(argv)
     finally:
-        Path(list_path).unlink()
+        Path(list_path).unlink(missing_ok=True)

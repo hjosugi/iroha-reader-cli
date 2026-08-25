@@ -46,6 +46,19 @@ and this project uses [semantic versioning](https://semver.org/).
   is not installed. `--list-speakers --engine openjtalk` shows the
   names, and an unknown name lists what is there
   ([#9](https://github.com/hjosugi/iroha-reader-cli/issues/9)).
+- Markdown headings survive extraction and become chapters: written
+  into the mp3 as ID3 chapter frames (`--chapter-level`,
+  `--no-chapters`), or one file per chapter with
+  `--split-by-heading LEVEL`. Splitting after a normal run is free,
+  since the segments are already cached
+  ([#5](https://github.com/hjosugi/iroha-reader-cli/issues/5)).
+
+### Changed
+
+- `ConvertResult.lines` is now a tuple of `Line` (text plus heading
+  level); `result.texts` gives the plain strings. `convert_all()` is
+  the entry point that honours splitting, `convert()` still returns
+  one result for the whole document.
 
 ## [0.8.0] - 2026-08-26
 

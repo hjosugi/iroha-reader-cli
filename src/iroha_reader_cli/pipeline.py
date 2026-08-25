@@ -13,8 +13,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import audio, extract, segment, subtitles
+from . import audio, document, extract, segment, subtitles
+from .audio import ChapterMark
 from .cache import CachedEngine, SegmentCache
+from .document import Line
 from .engines import Engine, EngineSettings, create
 from .errors import ReaderError
 from .readings import Readings
@@ -23,6 +25,9 @@ from .timeline import Timeline
 from .timeline import build as build_timeline
 
 AUDIO_FORMATS = ("mp3", "wav")
+#: Chapter marks can only be written into formats that carry metadata.
+CHAPTER_FORMATS = ("mp3",)
+DEFAULT_CHAPTER_LEVEL = 2
 
 
 @dataclass(slots=True)
@@ -46,6 +51,11 @@ class ConvertOptions:
     source_label: str | None = None
     use_cache: bool = True
     cache_dir: Path | None = None
+    #: Write markdown headings into the audio file as chapters.
+    chapters: bool = True
+    chapter_level: int = DEFAULT_CHAPTER_LEVEL
+    #: One output per heading of this level, instead of one per file.
+    split_level: int | None = None
 
     def __post_init__(self) -> None:
         # A config file or a library caller may pass plain strings.
@@ -67,35 +77,60 @@ class ConvertOptions:
             raise ReaderError("--gap-ms must be 0 or more")
         if self.max_chars < 1:
             raise ReaderError("--max-chars must be 1 or more")
+        for name, level in (("--chapter-level", self.chapter_level),
+                            ("--split-by-heading", self.split_level)):
+            if level is not None and not 1 <= level <= 6:
+                raise ReaderError(f"{name} must be between 1 and 6")
 
 
 @dataclass(frozen=True, slots=True)
 class ConvertResult:
-    """What one input file produced."""
+    """What one input file, or one chapter of it, produced."""
 
     source: Path
     audio: Path
     subtitle_files: tuple[Path, ...]
     text_file: Path | None
-    lines: tuple[str, ...]
+    lines: tuple[Line, ...]
     timeline: Timeline
     engine: str
+    chapters: tuple[ChapterMark, ...] = ()
+
+    @property
+    def texts(self) -> tuple[str, ...]:
+        """Just the spoken text of each line."""
+        return tuple(line.text for line in self.lines)
 
 
 def read_lines(path: Path, options: ConvertOptions,
-               reporter: Reporter | None = None) -> list[str]:
+               reporter: Reporter | None = None) -> list[Line]:
     """Extract the file and split it into subtitle lines."""
     pages = options.pages
     if pages and path.suffix.lower() != ".pdf":
         if reporter is not None:
             reporter.warn("--pages works with pdf only. Ignoring it.")
         pages = None
-    text = extract.extract(path, keep_code=options.keep_code, pages=pages,
-                           pdf_backend=options.pdf_backend)
-    lines = segment.segment(text, max_chars=options.max_chars)
+    blocks = extract.extract_blocks(path, keep_code=options.keep_code, pages=pages,
+                                    pdf_backend=options.pdf_backend)
+    lines = segment.segment_blocks(blocks, max_chars=options.max_chars)
     if not lines:
         raise ReaderError(f"no readable text in {path}")
     return lines
+
+
+def chapter_marks(lines: Sequence[Line], timeline: Timeline, level: int,
+                  title: str = "") -> list[ChapterMark]:
+    """Turn the headings into chapter marks over the finished audio."""
+    parts = document.chapters(lines, level, title=title)
+    if len(parts) < 2:
+        return []
+    marks: list[ChapterMark] = []
+    for part in parts:
+        start = timeline.starts[part.start] if part.start < len(timeline.starts) else 0.0
+        end = (timeline.starts[part.stop] if part.stop < len(timeline.starts)
+               else timeline.total)
+        marks.append(ChapterMark(part.title, start, end))
+    return marks
 
 
 def synthesize(lines: Sequence[str], engine: Engine, out_path: Path,
@@ -123,14 +158,9 @@ def synthesize(lines: Sequence[str], engine: Engine, out_path: Path,
     return timeline
 
 
-def convert(path: Path, options: ConvertOptions,
-            settings: EngineSettings | None = None,
-            reporter: Reporter | None = None) -> ConvertResult:
-    """Convert one document into audio plus subtitles."""
-    options.validate()
-    settings = settings if settings is not None else EngineSettings()
-    reporter = reporter if reporter is not None else Reporter(quiet=True)
-
+def _open(path: Path, options: ConvertOptions, settings: EngineSettings,
+          reporter: Reporter) -> tuple[list[Line], Path, str, Engine]:
+    """Read the document and get an engine ready for it."""
     reporter.info(f"* {options.source_label or path}")
     lines = read_lines(path, options, reporter)
     reporter.info(f"  lines: {len(lines)}")
@@ -138,32 +168,47 @@ def convert(path: Path, options: ConvertOptions,
     outdir = options.outdir if options.outdir is not None else path.parent
     outdir.mkdir(parents=True, exist_ok=True)
     stem = options.name or path.stem
-    audio_path = outdir / f"{stem}.{options.audio_format}"
 
-    engine = create(settings, japanese=segment.has_japanese("".join(lines)))
+    engine = create(settings, japanese=segment.has_japanese(
+        "".join(line.text for line in lines)))
     detail = f" ({engine.detail})" if engine.detail else ""
     reporter.info(f"  engine: {engine.name}{detail}")
     if options.use_cache:
         # Only the segments are cached; the join happens every time.
         engine = CachedEngine(engine, SegmentCache(options.cache_dir))
+    return lines, outdir, stem, engine
+
+
+def _render(lines: Sequence[Line], source: Path, outdir: Path, stem: str,
+            options: ConvertOptions, engine: Engine,
+            reporter: Reporter) -> ConvertResult:
+    """Synthesize one run of lines and write everything that goes with it."""
+    texts = document.texts(lines)
+    audio_path = outdir / f"{stem}.{options.audio_format}"
 
     # The dictionary changes only what is spoken.
-    spoken = options.readings.apply_all(lines) if options.readings else list(lines)
+    spoken = options.readings.apply_all(texts) if options.readings else list(texts)
     timeline = synthesize(spoken, engine, audio_path, options, reporter)
+
+    marks: tuple[ChapterMark, ...] = ()
+    if options.chapters and options.audio_format in CHAPTER_FORMATS:
+        marks = tuple(chapter_marks(lines, timeline, options.chapter_level, stem))
+        if marks:
+            # Rewriting the tags is cheaper than a second synthesis pass.
+            audio.write_chapters(str(audio_path), marks, title=stem)
+            reporter.info(f"  chapters: {len(marks)}")
 
     written: list[Path] = []
     for fmt in options.subtitle_formats:
         sub_path = outdir / f"{stem}.{fmt}"
-        sub_path.write_text(
-            subtitles.render(fmt, lines, timeline, stem),
-            encoding="utf-8", newline="\n",
-        )
+        sub_path.write_text(subtitles.render(fmt, texts, timeline, stem),
+                            encoding="utf-8", newline="\n")
         written.append(sub_path)
 
     text_file: Path | None = None
     if options.write_text:
         text_file = outdir / f"{stem}.lines.txt"
-        text_file.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+        text_file.write_text("\n".join(texts) + "\n", encoding="utf-8", newline="\n")
 
     reporter.info(f"  wrote: {audio_path}")
     for sub_path in written:
@@ -172,11 +217,52 @@ def convert(path: Path, options: ConvertOptions,
         reporter.info(f"  wrote: {text_file}")
 
     return ConvertResult(
-        source=path,
+        source=source,
         audio=audio_path,
         subtitle_files=tuple(written),
         text_file=text_file,
         lines=tuple(lines),
         timeline=timeline,
         engine=engine.name,
+        chapters=marks,
     )
+
+
+def convert(path: Path, options: ConvertOptions,
+            settings: EngineSettings | None = None,
+            reporter: Reporter | None = None) -> ConvertResult:
+    """Convert one document into one audio file plus subtitles.
+
+    Splitting is ignored here; use convert_all() for that.
+    """
+    options.validate()
+    settings = settings if settings is not None else EngineSettings()
+    reporter = reporter if reporter is not None else Reporter(quiet=True)
+    lines, outdir, stem, engine = _open(path, options, settings, reporter)
+    return _render(lines, path, outdir, stem, options, engine, reporter)
+
+
+def convert_all(path: Path, options: ConvertOptions,
+                settings: EngineSettings | None = None,
+                reporter: Reporter | None = None) -> list[ConvertResult]:
+    """Convert one document, honouring --split-by-heading.
+
+    Without splitting this is convert() in a list of one.
+    """
+    options.validate()
+    settings = settings if settings is not None else EngineSettings()
+    reporter = reporter if reporter is not None else Reporter(quiet=True)
+    lines, outdir, stem, engine = _open(path, options, settings, reporter)
+
+    if options.split_level is None:
+        return [_render(lines, path, outdir, stem, options, engine, reporter)]
+
+    parts = document.chapters(lines, options.split_level, title=stem)
+    reporter.info(f"  chapters: {len(parts)}")
+    results: list[ConvertResult] = []
+    for number, part in enumerate(parts, start=1):
+        name = f"{stem}-{number:02d}-{document.slug(part.title, f'part{number}')}"
+        reporter.info(f"  [{number}/{len(parts)}] {part.title}")
+        results.append(_render(part.lines, path, outdir, name, options, engine,
+                               reporter))
+    return results
