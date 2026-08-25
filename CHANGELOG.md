@@ -19,8 +19,21 @@ and this project uses [semantic versioning](https://semver.org/).
   temporary directory for the life of the server
   ([#2](https://github.com/hjosugi/iroha-reader-cli/issues/2)).
 
+### Fixed
+
+- The single file builds no longer break the commands they call. A
+  PyInstaller build unpacks its own libstdc++ and points
+  `LD_LIBRARY_PATH` at it; ffmpeg and espeak-ng inherited that and
+  failed to load with `GLIBCXX_... not found` whenever the system
+  libraries were newer than the build machine's. External commands now
+  get the environment the binary was started with.
+
 ### Changed
 
+- The binaries are built inside manylinux_2_28, which drops the glibc
+  floor from 2.39 to 2.14 -- they now run on distributions from
+  Ubuntu 18.04 and RHEL 8 onwards
+  ([#11](https://github.com/hjosugi/iroha-reader-cli/issues/11)).
 - The plain binary asset is named after its architecture:
   `iroha-reader-cli-linux-x86_64`, `iroha-reader-cli-linux-aarch64`.
 
