@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # Build a single-file Linux binary with PyInstaller.
-# Uses a private venv under build/. Your system Python stays clean.
-# The binary still needs ffmpeg (and espeak-ng / open_jtalk / piper
-# when used) on the target machine.
-set -eu
+#
+# The binary bundles Python and the two Python dependencies. It still
+# calls ffmpeg at run time, plus espeak-ng / open_jtalk / piper when
+# those engines are used. Build on the oldest Linux you want to
+# support: the glibc of the build machine sets the floor.
+set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VENV=build/venv
-if [ ! -x "$VENV/bin/python" ]; then
-  python3 -m venv "$VENV" || {
-    echo "error: python3 -m venv failed. Install it first:" >&2
-    echo "  sudo apt install python3-venv" >&2
-    exit 1
-  }
+if ! command -v uv > /dev/null; then
+  echo "error: uv is required. Install it with:" >&2
+  echo "  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+  exit 1
 fi
-"$VENV/bin/pip" install --quiet --upgrade pip pyinstaller .
 
-"$VENV/bin/python" -m PyInstaller --onefile --clean \
+uv run --group build --no-group dev pyinstaller \
+  --onefile --clean --noconfirm \
   --name iroha-reader-cli \
+  --distpath dist --workpath build/pyinstaller --specpath build \
   --collect-all edge_tts \
-  iroha_reader_cli/__main__.py
+  scripts/entrypoint.py
 
 echo
 echo "binary: dist/iroha-reader-cli"
+dist/iroha-reader-cli --version

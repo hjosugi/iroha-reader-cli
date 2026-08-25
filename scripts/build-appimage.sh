@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Build a Linux AppImage. Runs the PyInstaller build first.
-# The AppImage still needs ffmpeg (and espeak-ng / open_jtalk / piper
-# when used) on the target machine.
-set -eu
+# Build a Linux AppImage around the single-file binary.
+#
+# Needs curl for appimagetool on the first run. The AppImage still
+# calls ffmpeg (and espeak-ng / open_jtalk / piper when used) on the
+# target machine.
+set -euo pipefail
 cd "$(dirname "$0")/.."
 
+ARCH=${ARCH:-x86_64}
 ./scripts/build-native.sh
 
 APPDIR=build/AppDir
@@ -30,20 +33,23 @@ Categories=Utility;AudioVideo;
 Terminal=true
 DESK
 
-# Simple placeholder icon. Replace with a real icon later.
-ffmpeg -y -v error -f lavfi -i color=c=0x6B4FA0:s=256x256 -frames:v 1 \
-  "$APPDIR/iroha-reader-cli.png"
+if [ -f assets/icon.png ]; then
+  cp assets/icon.png "$APPDIR/iroha-reader-cli.png"
+else
+  python3 scripts/make-icon.py "$APPDIR/iroha-reader-cli.png"
+fi
 
 TOOL=build/appimagetool
 if [ ! -x "$TOOL" ]; then
-  curl -L -o "$TOOL" \
-    https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+  mkdir -p build
+  curl -fsSL -o "$TOOL" \
+    "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH}.AppImage"
   chmod +x "$TOOL"
 fi
 
-# --appimage-extract-and-run works on machines without FUSE.
-ARCH=x86_64 "$TOOL" --appimage-extract-and-run "$APPDIR" \
-  dist/iroha-reader-cli-x86_64.AppImage
+# --appimage-extract-and-run also works on machines without FUSE.
+OUT="dist/iroha-reader-cli-${ARCH}.AppImage"
+ARCH="$ARCH" "$TOOL" --appimage-extract-and-run "$APPDIR" "$OUT"
 
 echo
-echo "appimage: dist/iroha-reader-cli-x86_64.AppImage"
+echo "appimage: $OUT"

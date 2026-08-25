@@ -1,0 +1,34 @@
+# Publish to PyPI. Run this by hand after a release looks good.
+#
+# It needs a trusted publisher for this repository on PyPI
+# (https://pypi.org/manage/account/publishing/) pointing at this
+# workflow file and the `pypi` environment. See #10.
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or commit to publish"
+        required: true
+        default: "main"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # trusted publishing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: astral-sh/setup-uv@v10
+
+      - run: uv build
+
+      - run: uv publish --trusted-publishing always
