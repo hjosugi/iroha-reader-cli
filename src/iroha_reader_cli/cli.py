@@ -86,6 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="subtitle formats: "
                         f"{', '.join(subtitles.FORMATS)}. Repeat or use commas, "
                         "like --subs lrc,srt (default: lrc)")
+    p.add_argument("--lrc-style", choices=["line", "word"], default="line",
+                   help="line: one timestamp per line. word: a timestamp per "
+                        "word as well (Enhanced LRC and karaoke WebVTT). "
+                        "Needs --engine edge (default: line)")
     p.add_argument("--gap-ms", type=int, default=200,
                    help="silence between lines, in ms (default: 200)")
     p.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS,

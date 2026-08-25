@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from iroha_reader_cli.cache import CachedEngine, SegmentCache, default_dir, key_for
-from iroha_reader_cli.engines.base import Engine, LocalEngine
+from iroha_reader_cli.engines.base import Engine, LocalEngine, Segments
 from iroha_reader_cli.engines.espeak import EspeakEngine
 from iroha_reader_cli.reporting import Reporter
 
@@ -100,7 +100,7 @@ def test_a_second_run_synthesizes_nothing(tmp_path: Path) -> None:
 
     second = CountingEngine()
     wrapped = CachedEngine(second, cache)
-    paths = wrapped.synth_all(lines, outdir(tmp_path, "b"), Reporter(quiet=True))
+    paths = wrapped.synth_all(lines, outdir(tmp_path, "b"), Reporter(quiet=True)).paths
     assert second.calls == []
     assert wrapped.reused == 3
     assert [Path(p).read_text(encoding="utf-8") for p in paths] == lines
@@ -115,7 +115,7 @@ def test_only_the_changed_line_is_synthesized_again(tmp_path: Path) -> None:
     second = CountingEngine()
     paths = CachedEngine(second, cache).synth_all(
         ["one", "edited"], outdir(tmp_path, "b"), Reporter(quiet=True)
-    )
+    ).paths
     assert second.calls == ["edited"]
     assert [Path(p).read_text(encoding="utf-8") for p in paths] == ["one", "edited"]
 
@@ -155,7 +155,7 @@ def test_an_unwritable_cache_is_not_fatal(tmp_path: Path) -> None:
     cache = SegmentCache(unwritable / "store")
     engine = CountingEngine()
     paths = CachedEngine(engine, cache).synth_all(["one"], outdir(tmp_path, "a"),
-                                                  Reporter(quiet=True))
+                                                  Reporter(quiet=True)).paths
     assert engine.calls == ["one"]
     assert Path(paths[0]).read_text(encoding="utf-8") == "one"
 
@@ -170,8 +170,8 @@ def test_the_wrapper_keeps_the_engine_identity() -> None:
             return "a voice"
 
         def synth_all(self, lines: Sequence[str], outdir: str,
-                      reporter: Reporter) -> list[str]:
-            return []
+                      reporter: Reporter) -> Segments:
+            return Segments([])
 
     wrapped = CachedEngine(Fake(), SegmentCache(Path("/nowhere")))
     assert (wrapped.name, wrapped.ext, wrapped.detail) == ("fake", "mp3", "a voice")
@@ -190,8 +190,54 @@ def test_a_repeated_line_is_spoken_once_on_the_first_run(tmp_path: Path) -> None
     wrapped = CachedEngine(engine, cache)
     lines = ["chorus", "verse", "chorus", "chorus"]
 
-    paths = wrapped.synth_all(lines, outdir(tmp_path, "a"), Reporter(quiet=True))
+    paths = wrapped.synth_all(lines, outdir(tmp_path, "a"), Reporter(quiet=True)).paths
 
     assert engine.calls == ["chorus", "verse"]
     assert wrapped.repeats == 2
     assert [Path(p).read_text(encoding="utf-8") for p in paths] == lines
+
+
+class TalkingEngine(CountingEngine):
+    """Reports one word per space separated token."""
+
+    word_timing = True
+
+    def synth_all(self, lines: Sequence[str], outdir: str,
+                  reporter: Reporter) -> Segments:
+        from iroha_reader_cli.timeline import Word
+
+        segments = super().synth_all(lines, outdir, reporter)
+        words = [
+            [Word(token, index * 0.5, 0.4) for index, token in enumerate(line.split())]
+            for line in lines
+        ]
+        return Segments(segments.paths, words)
+
+
+def test_word_timings_survive_a_cache_hit(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    first = CachedEngine(TalkingEngine(), cache)
+    first.synth_all(["hello there"], outdir(tmp_path, "a"), Reporter(quiet=True))
+
+    second_engine = TalkingEngine()
+    second = CachedEngine(second_engine, cache)
+    segments = second.synth_all(["hello there"], outdir(tmp_path, "b"),
+                                Reporter(quiet=True))
+
+    assert second_engine.calls == []
+    assert segments.words is not None
+    assert [w.text for w in segments.words[0]] == ["hello", "there"]
+    assert segments.words[0][1].start == 0.5
+
+
+def test_a_hit_without_word_timings_is_a_miss(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    # Cached by an engine that cannot report words...
+    CachedEngine(CountingEngine(), cache).synth_all(
+        ["hello there"], outdir(tmp_path, "a"), Reporter(quiet=True)
+    )
+    # ...so a run that needs them speaks the line again.
+    talker = TalkingEngine()
+    CachedEngine(talker, cache).synth_all(["hello there"], outdir(tmp_path, "b"),
+                                          Reporter(quiet=True))
+    assert talker.calls == ["hello there"]

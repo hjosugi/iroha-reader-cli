@@ -9,17 +9,46 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from .timeline import Timeline
+from .timeline import Timeline, Word
 
 FORMATS = ("lrc", "srt", "vtt")
 DEFAULT_FORMATS = ("lrc",)
 
 
-def _lrc_stamp(sec: float) -> str:
-    """Format seconds as [mm:ss.xx]."""
+def _mmss(sec: float) -> str:
+    """Format seconds as mm:ss.xx."""
     sec = max(sec, 0.0)
     minutes = int(sec // 60)
-    return f"[{minutes:02d}:{sec - minutes * 60:05.2f}]"
+    return f"{minutes:02d}:{sec - minutes * 60:05.2f}"
+
+
+def _lrc_stamp(sec: float) -> str:
+    """Format seconds as [mm:ss.xx]."""
+    return f"[{_mmss(sec)}]"
+
+
+def _tag_words(line: str, words: Sequence[Word], stamp: Callable[[float], str]) -> str:
+    """Put a timestamp in front of every word, keeping the line intact.
+
+    The engine reports words without their punctuation, so the tags are
+    threaded into the original text instead of rebuilt from the word
+    list. A word that cannot be found is left untagged rather than
+    guessed at.
+    """
+    out: list[str] = []
+    cursor = 0
+    for word in words:
+        found = line.find(word.text, cursor)
+        if found < 0:
+            found = line.lower().find(word.text.lower(), cursor)
+        if found < 0:
+            continue
+        out.append(line[cursor:found])
+        out.append(stamp(word.start))
+        out.append(line[found:found + len(word.text)])
+        cursor = found + len(word.text)
+    out.append(line[cursor:])
+    return "".join(out)
 
 
 def _clock(sec: float, ms_sep: str) -> str:
@@ -32,15 +61,22 @@ def _clock(sec: float, ms_sep: str) -> str:
 
 
 def build_lrc(lines: Sequence[str], timeline: Timeline, title: str = "") -> str:
-    """Return a full LRC file."""
+    """Return a full LRC file.
+
+    When the timeline carries word times, every word gets its own
+    <mm:ss.xx> tag as well, which is what karaoke players read as
+    Enhanced LRC.
+    """
     out = [
         f"[ti:{title}]",
         "[re:iroha-reader-cli]",
-        f"[length:{_lrc_stamp(timeline.total)[1:-1]}]",
+        f"[length:{_mmss(timeline.total)}]",
         "",
     ]
-    out += [f"{_lrc_stamp(start)}{text}"
-            for text, start in zip(lines, timeline.starts, strict=False)]
+    for index, (text, start) in enumerate(zip(lines, timeline.starts, strict=False)):
+        words = timeline.words[index] if timeline.words is not None else ()
+        body = _tag_words(text, words, lambda sec: f"<{_mmss(sec)}>") if words else text
+        out.append(f"{_lrc_stamp(start)}{body}")
     return "\n".join(out) + "\n"
 
 
@@ -62,10 +98,14 @@ def build_vtt(lines: Sequence[str], timeline: Timeline, _title: str = "") -> str
     """Return a full WebVTT file. VTT has no title field, so the title is ignored."""
     out: list[str] = ["WEBVTT", ""]
     cues = zip(lines, timeline.starts, timeline.durations, strict=False)
-    for text, start, duration in cues:
+    for index, (text, start, duration) in enumerate(cues):
+        words = timeline.words[index] if timeline.words is not None else ()
+        # WebVTT reads the same inline timestamps as karaoke cues.
+        body = (_tag_words(text, words, lambda sec: f"<{_clock(sec, '.')}>")
+                if words else text)
         out += [
             f"{_clock(start, '.')} --> {_clock(start + duration, '.')}",
-            text,
+            body,
             "",
         ]
     return "\n".join(out) + "\n"

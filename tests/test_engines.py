@@ -88,3 +88,23 @@ def test_missing_espeak_explains_how_to_install(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(shutil, "which", lambda _c: None)
     with pytest.raises(EngineNotReadyError, match="apt install espeak-ng"):
         engines.create(settings(requested="espeak"), japanese=True)
+
+
+def test_word_timing_only_works_with_edge(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _c: "/usr/bin/espeak-ng")
+    with pytest.raises(EngineNotReadyError, match="needs --engine edge"):
+        engines.create(settings(requested="espeak", word_timing=True), japanese=False)
+
+
+def test_edge_passes_word_timing_on() -> None:
+    engine = engines.create(settings(requested="edge", word_timing=True),
+                            japanese=False)
+    assert engine.word_timing is True
+    assert engines.create(settings(requested="edge"), japanese=False).word_timing is False
+
+
+def test_lrc_style_word_turns_on_word_timing() -> None:
+    args = argparse.Namespace(engine="edge", lrc_style="word")
+    assert engines.EngineSettings.from_namespace(args).word_timing is True
+    args = argparse.Namespace(engine="edge", lrc_style="line")
+    assert engines.EngineSettings.from_namespace(args).word_timing is False

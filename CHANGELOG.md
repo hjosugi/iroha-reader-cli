@@ -27,6 +27,12 @@ and this project uses [semantic versioning](https://semver.org/).
   normalizes ligatures, and reads multi-column pages in a better
   order. pypdf stays the fallback and needs nothing extra
   ([#3](https://github.com/hjosugi/iroha-reader-cli/issues/3)).
+- `--lrc-style word`: a timestamp for every word, as Enhanced LRC
+  (`<mm:ss.xx>` inside the line) and as inline WebVTT cue timestamps.
+  The times come from the edge service's own word boundary events, so
+  they are measured rather than guessed; asking for them with a local
+  engine is an error. Works for Japanese as well as English
+  ([#1](https://github.com/hjosugi/iroha-reader-cli/issues/1)).
 
 ## [0.8.0] - 2026-08-26
 

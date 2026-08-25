@@ -13,11 +13,13 @@ import json
 import os
 import shutil
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from .engines.base import Engine
+from .engines.base import Engine, Segments
 from .reporting import Reporter
+from .timeline import Word
 
 APP_NAME = "iroha-reader-cli"
 
@@ -50,16 +52,35 @@ class SegmentCache:
         path = self.path_for(key, ext)
         return path if path.is_file() else None
 
-    def put(self, key: str, ext: str, source: Path) -> None:
-        """Store a segment. A failure here is never fatal."""
-        path = self.path_for(key, ext)
+    def get_words(self, key: str) -> list[Word] | None:
+        """Read the word timings stored beside a segment, if any."""
+        path = self.path_for(key, "json")
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            staged = path.with_suffix(path.suffix + f".{os.getpid()}.part")
-            shutil.copyfile(source, staged)
-            staged.replace(path)  # atomic, so a reader never sees half a file
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return [Word(**item) for item in data]
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def put(self, key: str, ext: str, source: Path,
+            words: Sequence[Word] | None = None) -> None:
+        """Store a segment, and its word timings when the engine has them.
+
+        A failure here is never fatal: the cache is an optimisation.
+        """
+        try:
+            self._store(self.path_for(key, ext), source.read_bytes())
+            if words is not None:
+                payload = json.dumps([asdict(word) for word in words],
+                                     ensure_ascii=False)
+                self._store(self.path_for(key, "json"), payload.encode("utf-8"))
         except OSError:
             return
+
+    def _store(self, path: Path, payload: bytes) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        staged = path.with_suffix(path.suffix + f".{os.getpid()}.part")
+        staged.write_bytes(payload)
+        staged.replace(path)  # atomic, so a reader never sees half a file
 
     def clear(self) -> tuple[int, int]:
         """Delete everything. Returns (files removed, bytes freed)."""
@@ -94,27 +115,35 @@ class CachedEngine(Engine):
         return self.inner.detail
 
     def synth_all(self, lines: Sequence[str], outdir: str,
-                  reporter: Reporter) -> list[str]:
+                  reporter: Reporter) -> Segments:
         signature = self.inner.signature()
         keys = [key_for(signature, line) for line in lines]
         paths = self.segment_paths(len(lines), outdir)
+        # An entry without word timings is a miss when we need them.
+        words: list[list[Word]] | None = (
+            [[] for _ in lines] if self.inner.word_timing else None
+        )
 
         missing: list[int] = []
         for index, key in enumerate(keys):
             hit = self.cache.get(key, self.ext)
-            if hit is None:
+            stored = self.cache.get_words(key) if words is not None else None
+            if hit is None or (words is not None and stored is None):
                 missing.append(index)
                 continue
             try:
                 shutil.copyfile(hit, paths[index])
             except OSError:
                 missing.append(index)
+                continue
+            if words is not None and stored is not None:
+                words[index] = stored
 
         self.reused = len(lines) - len(missing)
         if self.reused:
             reporter.info(f"  cache: {self.reused}/{len(lines)} lines reused")
         if not missing:
-            return paths
+            return Segments(paths, words)
 
         # A line that appears twice in the document is one key, so it is
         # spoken once even on the very first run.
@@ -130,10 +159,15 @@ class CachedEngine(Engine):
         first_of = [targets[0] for targets in by_key.values()]
         fresh = self.inner.synth_all([lines[i] for i in first_of], str(fresh_dir),
                                      reporter)
-        for (key, targets), source in zip(by_key.items(), fresh, strict=True):
+        for position, ((key, targets), source) in enumerate(
+                zip(by_key.items(), fresh.paths, strict=True)):
             head = targets[0]
             Path(source).replace(paths[head])
-            self.cache.put(key, self.ext, Path(paths[head]))
+            spoken = fresh.words[position] if fresh.words is not None else None
+            if words is not None and spoken is not None:
+                for target in targets:
+                    words[target] = spoken
+            self.cache.put(key, self.ext, Path(paths[head]), spoken)
             for other in targets[1:]:
                 shutil.copyfile(paths[head], paths[other])
-        return paths
+        return Segments(paths, words)

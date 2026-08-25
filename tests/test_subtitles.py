@@ -42,3 +42,42 @@ def test_render_dispatches_by_name() -> None:
 def test_negative_times_clamp_to_zero() -> None:
     timeline = build([1.0], gap_sec=0.0)
     assert "[00:00.00]" in build_lrc(["x"], timeline)
+
+
+def _word_timeline() -> tuple[list[str], object]:
+    from iroha_reader_cli.timeline import Word, build
+
+    lines = ["Hello there, world.", "Second line here."]
+    timeline = build(
+        [2.0, 2.0],
+        gap_sec=0.0,
+        words=[
+            [Word("Hello", 0.0, 0.4), Word("there", 0.5, 0.4), Word("world", 1.0, 0.4)],
+            [Word("Second", 0.0, 0.4), Word("line", 0.5, 0.4)],
+        ],
+    )
+    return lines, timeline
+
+
+def test_word_times_become_enhanced_lrc_tags() -> None:
+    lines, timeline = _word_timeline()
+    text = build_lrc(lines, timeline)  # type: ignore[arg-type]
+
+    assert "[00:00.00]<00:00.00>Hello <00:00.50>there, <00:01.00>world." in text
+    # The line start still comes first, and punctuation survives.
+    assert "[00:02.00]<00:02.00>Second <00:02.50>line here." in text
+
+
+def test_word_times_become_karaoke_vtt_cues() -> None:
+    lines, timeline = _word_timeline()
+    text = build_vtt(lines, timeline)  # type: ignore[arg-type]
+    assert "<00:00:00.000>Hello <00:00:00.500>there, <00:00:01.000>world." in text
+
+
+def test_a_word_the_engine_invented_is_skipped() -> None:
+    from iroha_reader_cli.timeline import Word, build
+
+    timeline = build([1.0], gap_sec=0.0,
+                     words=[[Word("Hello", 0.0, 0.2), Word("nowhere", 0.5, 0.2)]])
+    assert build_lrc(["Hello world."], timeline) .endswith(
+        "[00:00.00]<00:00.00>Hello world.\n")

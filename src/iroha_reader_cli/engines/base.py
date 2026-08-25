@@ -11,10 +11,24 @@ import abc
 import threading
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
 from ..reporting import Reporter
+from ..timeline import Word
+
+__all__ = ["Engine", "LocalEngine", "Segments", "Word"]
+
+
+@dataclass(frozen=True, slots=True)
+class Segments:
+    """What an engine produced: one file per line, and word times if it has them."""
+
+    paths: list[str]
+    #: Per line, in the same order as paths. None when the engine cannot
+    #: report where each word falls.
+    words: list[list[Word]] | None = field(default=None)
 
 
 class Engine(abc.ABC):
@@ -52,10 +66,13 @@ class Engine(abc.ABC):
                 fields[key] = _describe(value)
         return fields
 
+    #: True when this engine can say where each word starts.
+    word_timing: bool = False
+
     @abc.abstractmethod
     def synth_all(self, lines: Sequence[str], outdir: str,
-                  reporter: Reporter) -> list[str]:
-        """Synthesize every line. Return the segment paths, in order."""
+                  reporter: Reporter) -> Segments:
+        """Synthesize every line, in order."""
 
     def segment_paths(self, count: int, outdir: str) -> list[str]:
         return [str(Path(outdir) / f"seg_{i:05d}.{self.ext}") for i in range(count)]
@@ -86,7 +103,7 @@ class LocalEngine(Engine):
         """Write one line of speech to path."""
 
     def synth_all(self, lines: Sequence[str], outdir: str,
-                  reporter: Reporter) -> list[str]:
+                  reporter: Reporter) -> Segments:
         paths = self.segment_paths(len(lines), outdir)
         total = len(lines)
         done = 0
@@ -107,4 +124,4 @@ class LocalEngine(Engine):
                 # list() re-raises the first failure once the pool drains.
                 list(pool.map(one, range(total)))
         reporter.progress_done()
-        return paths
+        return Segments(paths)

@@ -30,7 +30,7 @@ class CountingEngine(LocalEngine):
 def test_segments_keep_their_order_when_parallel(tmp_path: Path) -> None:
     lines = [f"line {i}" for i in range(12)]
     engine = CountingEngine(jobs=4)
-    paths = engine.synth_all(lines, str(tmp_path), Reporter(quiet=True))
+    paths = engine.synth_all(lines, str(tmp_path), Reporter(quiet=True)).paths
 
     assert len(paths) == len(lines)
     assert sorted(engine.seen) == sorted(lines)
@@ -39,7 +39,7 @@ def test_segments_keep_their_order_when_parallel(tmp_path: Path) -> None:
 
 def test_one_job_still_works(tmp_path: Path) -> None:
     engine = CountingEngine(jobs=1)
-    paths = engine.synth_all(["only"], str(tmp_path), Reporter(quiet=True))
+    paths = engine.synth_all(["only"], str(tmp_path), Reporter(quiet=True)).paths
     assert Path(paths[0]).name == "seg_00000.wav"
 
 

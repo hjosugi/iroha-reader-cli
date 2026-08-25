@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from iroha_reader_cli import audio, pipeline
-from iroha_reader_cli.engines.base import Engine
+from iroha_reader_cli.engines.base import Engine, Segments
 from iroha_reader_cli.errors import ReaderError
 from iroha_reader_cli.pipeline import ConvertOptions, convert
 from iroha_reader_cli.readings import Readings
@@ -27,13 +27,13 @@ class FakeEngine(Engine):
         self.spoken: list[str] = []
 
     def synth_all(self, lines: Sequence[str], outdir: str,
-                  reporter: Reporter) -> list[str]:
+                  reporter: Reporter) -> Segments:
         self.spoken = list(lines)
         paths = self.segment_paths(len(lines), outdir)
         for path in paths:
             Path(path).write_bytes(b"")
         reporter.progress_done()
-        return paths
+        return Segments(paths)
 
 
 @pytest.fixture

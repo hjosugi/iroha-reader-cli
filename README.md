@@ -40,6 +40,32 @@ then are the segments joined with exactly the gaps the timeline
 assumes. No speech recognition, no forced alignment, nothing to drift.
 The test suite checks that claim on every run.
 
+## Word level timing
+
+`--lrc-style word` adds a timestamp to every word, which is what
+karaoke players read as Enhanced LRC. WebVTT gets the same treatment
+as inline cue timestamps:
+
+```sh
+iroha-reader-cli notes.md --engine edge --lrc-style word --subs lrc,vtt
+```
+
+```lrc
+[00:00.00]<00:00.10>This <00:00.35>is <00:00.46>a <00:00.54>small <00:00.88>English sample.
+[00:04.09]<00:04.19>It <00:04.36>shows <00:04.61>how <00:04.74>plain <00:05.05>text becomes audio.
+```
+
+It works for Japanese too, where the service does the tokenizing:
+
+```lrc
+[00:00.00]<00:00.16>これ<00:00.39>は<00:00.54>テスト<00:00.96>です。
+```
+
+This needs `--engine edge`: the service reports where each word falls,
+and no local engine does. Asking for it with a local engine is an
+error rather than a guess, because guessed timestamps are worse than
+none.
+
 ## Engines
 
 Everything here is free of charge. The engines differ in freedom and
@@ -239,6 +265,7 @@ are.
 | `--bitrate` | `64k` | mp3 bitrate, like `128k` |
 | `--loudnorm` | off | normalize loudness (ffmpeg `loudnorm`) |
 | `--subs` | `lrc` | subtitle formats: `--subs lrc,srt,vtt` |
+| `--lrc-style` | `line` | `word` adds a timestamp per word (Enhanced LRC, karaoke VTT). Needs `--engine edge` |
 | `--gap-ms` | `200` | silence between lines, in ms |
 | `--max-chars` | `60` | max characters per subtitle line |
 | `--type` | `md` | how to read stdin when the input is `-`: `md`, `txt`, `pdf` |
@@ -349,8 +376,6 @@ espeak-ng. See [CONTRIBUTING.md](CONTRIBUTING.md).
   character you used.
 - PDF extraction is only as good as the backend. Install
   `poppler-utils` for the better one; see [PDF text](#pdf-text).
-- Timestamps are line level. Word level (Enhanced LRC) is
-  [#1](https://github.com/hjosugi/iroha-reader-cli/issues/1).
 - Piper has no official Japanese voice, so Japanese stays on Open
   JTalk or VOICEVOX.
 

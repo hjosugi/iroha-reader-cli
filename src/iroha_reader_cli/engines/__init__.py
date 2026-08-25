@@ -80,6 +80,8 @@ class EngineSettings:
     edge_pitch: str = "+0Hz"
     edge_volume: str = "+0%"
     concurrency: int = 4
+    #: Ask the engine for per-word times. Only edge can report them.
+    word_timing: bool = False
 
     def __post_init__(self) -> None:
         # A config file may pass this as a plain string.
@@ -92,6 +94,8 @@ class EngineSettings:
         values = {k: v for k, v in vars(args).items() if k in names}
         if hasattr(args, "engine"):
             values["requested"] = args.engine
+        if hasattr(args, "lrc_style"):
+            values["word_timing"] = args.lrc_style == "word"
         return cls(**values)
 
 
@@ -124,6 +128,13 @@ def choose(settings: EngineSettings, japanese: bool) -> str:
 def create(settings: EngineSettings, japanese: bool) -> Engine:
     """Build the engine for these settings and this text."""
     name = choose(settings, japanese)
+
+    if settings.word_timing and name != "edge":
+        raise EngineNotReadyError(
+            f"word level timing needs --engine edge, not {name}. Only that "
+            "engine reports where each word falls; the local engines would "
+            "have to guess, and guessed timestamps are worse than none."
+        )
 
     if name == "openjtalk":
         if not openjtalk_available(settings):
@@ -158,6 +169,7 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
         return EdgeEngine(
             voice, rate=settings.rate, pitch=settings.edge_pitch,
             volume=settings.edge_volume, concurrency=settings.concurrency,
+            word_timing=settings.word_timing,
         )
 
     if shutil.which(EspeakEngine.command) is None:

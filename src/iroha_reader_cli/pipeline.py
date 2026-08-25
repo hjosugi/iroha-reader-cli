@@ -103,17 +103,20 @@ def synthesize(lines: Sequence[str], engine: Engine, out_path: Path,
     """Render the lines to one audio file and return the timeline."""
     with tempfile.TemporaryDirectory(prefix="iroha_reader_") as tmp:
         segments = engine.synth_all(lines, tmp, reporter)
+        paths = segments.paths
         timeline = build_timeline(
-            [audio.duration_sec(p) for p in segments], options.gap_ms / 1000.0
+            [audio.duration_sec(p) for p in paths],
+            options.gap_ms / 1000.0,
+            words=segments.words,
         )
-        pieces = list(segments)
-        if options.gap_ms > 0 and len(segments) > 1:
+        pieces = list(paths)
+        if options.gap_ms > 0 and len(paths) > 1:
             silence = str(Path(tmp) / f"silence.{engine.ext}")
-            audio.make_silence(silence, options.gap_ms, audio.sample_rate(segments[0]))
+            audio.make_silence(silence, options.gap_ms, audio.sample_rate(paths[0]))
             pieces = []
-            for index, path in enumerate(segments):
+            for index, path in enumerate(paths):
                 pieces.append(path)
-                if index < len(segments) - 1:
+                if index < len(paths) - 1:
                     pieces.append(silence)
         audio.concat(pieces, str(out_path),
                      bitrate=options.bitrate, loudnorm=options.loudnorm)
