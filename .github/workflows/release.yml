@@ -9,9 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  binaries:
+  build:
     name: ${{ matrix.arch }} binary
     runs-on: ${{ matrix.runner }}
+    # Built against an old glibc so the binaries run on old distributions
+    # too. The glibc of the build machine is the floor.
+    container: quay.io/pypa/manylinux_2_28_${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -30,15 +33,10 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: ./scripts/build-appimage.sh
 
-      - name: Smoke test both of them
+      - name: Report the glibc floor
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
-          ./dist/iroha-reader-cli examples/sample_en.txt -o /tmp/plain
-          test -s /tmp/plain/sample_en.mp3
-          ./dist/iroha-reader-cli-${{ matrix.arch }}.AppImage \
-            --appimage-extract-and-run examples/sample_en.txt -o /tmp/appimage
-          test -s /tmp/appimage/sample_en.mp3
+          objdump -T dist/iroha-reader-cli \
+            | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -3
 
       - name: Name the binary after its architecture
         run: mv dist/iroha-reader-cli dist/iroha-reader-cli-linux-${{ matrix.arch }}
@@ -51,8 +49,40 @@ jobs:
             dist/iroha-reader-cli-${{ matrix.arch }}.AppImage
           if-no-files-found: error
 
+  smoke:
+    name: ${{ matrix.arch }} smoke test
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-latest }
+          - { arch: aarch64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: binaries-${{ matrix.arch }}
+          path: dist
+
+      - name: Read a document with both of them
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
+          chmod +x dist/*
+          ./dist/iroha-reader-cli-linux-${{ matrix.arch }} \
+            examples/sample_en.txt -o /tmp/plain --subs lrc,srt
+          test -s /tmp/plain/sample_en.mp3
+          test -s /tmp/plain/sample_en.srt
+          ./dist/iroha-reader-cli-${{ matrix.arch }}.AppImage \
+            --appimage-extract-and-run examples/sample_en.txt -o /tmp/appimage
+          test -s /tmp/appimage/sample_en.mp3
+          cat /tmp/plain/sample_en.lrc
+
   publish:
-    needs: binaries
+    needs: smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
