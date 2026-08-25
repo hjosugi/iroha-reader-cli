@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
-from .errors import ReaderError, UnsupportedInputError
+from .errors import MissingCommandError, ReaderError, UnsupportedInputError
+from .proc import run
 
 _CODE_FENCE = re.compile(r"```.*?```", re.S)
 _TABLE_SEP = re.compile(r"^\s*\|[-:\s|]+\|\s*$", re.M)
@@ -53,12 +55,11 @@ def strip_markdown(text: str, keep_code: bool = False) -> str:
     return text
 
 
-def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None) -> str:
-    """Extract text from a pdf with pypdf.
+PDF_BACKENDS = ("auto", "pdftotext", "pypdf")
+PDFTOTEXT = "pdftotext"
 
-    `pages` is a 1-based (start, end) range. An end of None means the
-    last page.
-    """
+
+def _pdf_with_pypdf(path: Path, pages: tuple[int, int | None] | None) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as err:  # pragma: no cover - dependency is required
@@ -75,6 +76,44 @@ def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None) -> str:
             )
         selected = reader.pages[start - 1:end]
     return "\n".join(page.extract_text() or "" for page in selected)
+
+
+def _pdf_with_pdftotext(path: Path, pages: tuple[int, int | None] | None) -> str:
+    argv = [PDFTOTEXT]
+    if pages is not None:
+        start, end = pages
+        argv += ["-f", str(start)]
+        if end is not None:
+            argv += ["-l", str(end)]
+    # No -layout on purpose: the default mode undoes columns and gives
+    # reading order, which is what a listener needs.
+    argv += [str(path), "-"]
+    return run(argv).stdout.decode("utf-8", "replace")
+
+
+def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None,
+                backend: str = "auto") -> str:
+    """Extract text from a pdf.
+
+    `pages` is a 1-based (start, end) range. An end of None means the
+    last page. `backend` is auto, pdftotext, or pypdf; auto prefers
+    pdftotext when poppler is installed, because it reads multi-column
+    pages in the right order.
+    """
+    if backend not in PDF_BACKENDS:
+        raise ReaderError(f"unknown pdf backend: {backend} "
+                          f"(use {' / '.join(PDF_BACKENDS)})")
+    if backend == "auto":
+        backend = PDFTOTEXT if shutil.which(PDFTOTEXT) else "pypdf"
+    if backend == PDFTOTEXT:
+        if shutil.which(PDFTOTEXT) is None:
+            raise MissingCommandError(
+                "pdftotext is missing. Install poppler-utils "
+                "(Debian/Ubuntu: sudo apt install poppler-utils), "
+                "or use --pdf-backend pypdf."
+            )
+        return _pdf_with_pdftotext(path, pages)
+    return _pdf_with_pypdf(path, pages)
 
 
 def parse_page_range(spec: str) -> tuple[int, int | None]:
@@ -99,7 +138,8 @@ INPUT_TYPES = ("md", "txt", "pdf")
 
 
 def extract(path: Path, keep_code: bool = False,
-            pages: tuple[int, int | None] | None = None) -> str:
+            pages: tuple[int, int | None] | None = None,
+            pdf_backend: str = "auto") -> str:
     """Extract plain text, picking the reader from the file suffix."""
     if not path.exists():
         raise ReaderError(f"file not found: {path}")
@@ -107,7 +147,7 @@ def extract(path: Path, keep_code: bool = False,
         raise ReaderError(f"not a file: {path}")
     suffix = path.suffix.lower()
     if suffix == ".pdf":
-        return extract_pdf(path, pages=pages)
+        return extract_pdf(path, pages=pages, backend=pdf_backend)
     if suffix in MARKDOWN_SUFFIXES:
         return strip_markdown(read_text_file(path), keep_code=keep_code)
     if suffix in TEXT_SUFFIXES:

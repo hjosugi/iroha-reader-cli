@@ -94,6 +94,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--type", dest="input_type", choices=list(extract.INPUT_TYPES),
                    default="md",
                    help="how to read stdin when the input is - (default: md)")
+    p.add_argument("--pdf-backend", choices=list(extract.PDF_BACKENDS), default="auto",
+                   help="how to read pdf text (default: auto = pdftotext when "
+                        "poppler is installed, which reads columns in the right "
+                        "order, else pypdf)")
     p.add_argument("--pages", default=None,
                    help="pdf page range, like 3-10 or 5 or 3- (default: all)")
     p.add_argument("--dict", type=Path, default=None, dest="dict_file",
@@ -220,6 +224,7 @@ def build_options(args: argparse.Namespace) -> ConvertOptions:
         gap_ms=args.gap_ms,
         max_chars=args.max_chars,
         pages=extract.parse_page_range(args.pages) if args.pages else None,
+        pdf_backend=args.pdf_backend,
         keep_code=args.keep_code,
         write_text=args.write_text,
         use_cache=args.use_cache,

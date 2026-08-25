@@ -38,6 +38,7 @@ class ConvertOptions:
     gap_ms: int = 200
     max_chars: int = segment.DEFAULT_MAX_CHARS
     pages: tuple[int, int | None] | None = None
+    pdf_backend: str = "auto"
     keep_code: bool = False
     write_text: bool = False
     readings: Readings = field(default_factory=Readings)
@@ -60,6 +61,8 @@ class ConvertOptions:
         unknown = [f for f in self.subtitle_formats if f not in subtitles.FORMATS]
         if unknown:
             raise ReaderError(f"unknown subtitle format: {', '.join(unknown)}")
+        if self.pdf_backend not in extract.PDF_BACKENDS:
+            raise ReaderError(f"unknown pdf backend: {self.pdf_backend}")
         if self.gap_ms < 0:
             raise ReaderError("--gap-ms must be 0 or more")
         if self.max_chars < 1:
@@ -87,7 +90,8 @@ def read_lines(path: Path, options: ConvertOptions,
         if reporter is not None:
             reporter.warn("--pages works with pdf only. Ignoring it.")
         pages = None
-    text = extract.extract(path, keep_code=options.keep_code, pages=pages)
+    text = extract.extract(path, keep_code=options.keep_code, pages=pages,
+                           pdf_backend=options.pdf_backend)
     lines = segment.segment(text, max_chars=options.max_chars)
     if not lines:
         raise ReaderError(f"no readable text in {path}")

@@ -22,6 +22,11 @@ and this project uses [semantic versioning](https://semver.org/).
   run. `--no-cache`, `--cache-dir`, and `--clear-cache` are there when
   you want none of it
   ([#4](https://github.com/hjosugi/iroha-reader-cli/issues/4)).
+- `--pdf-backend {auto,pdftotext,pypdf}`. `auto` uses `pdftotext` when
+  poppler is installed: it joins words hyphenated across a line break,
+  normalizes ligatures, and reads multi-column pages in a better
+  order. pypdf stays the fallback and needs nothing extra
+  ([#3](https://github.com/hjosugi/iroha-reader-cli/issues/3)).
 
 ## [0.8.0] - 2026-08-26
 

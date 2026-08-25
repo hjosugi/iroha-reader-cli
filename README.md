@@ -59,7 +59,8 @@ free, open source, and offline.
 
 ## Install
 
-Requirements: Linux, Python 3.11+, and `ffmpeg`.
+Requirements: Linux, Python 3.11+, and `ffmpeg`. `poppler-utils` is
+worth adding if you read PDFs.
 
 ```sh
 # the tool itself
@@ -67,7 +68,7 @@ uv tool install git+https://github.com/hjosugi/iroha-reader-cli
 # or: pipx install git+https://github.com/hjosugi/iroha-reader-cli
 
 # ffmpeg, plus the two offline engines
-sudo apt install ffmpeg espeak-ng \
+sudo apt install ffmpeg espeak-ng poppler-utils \
   open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001
 ```
 
@@ -150,6 +151,24 @@ iroha-reader-cli notes.md --engine voicevox --speaker "Zundamon:Amaama"
 
 Piper voice samples: <https://rhasspy.github.io/piper-samples/>.
 
+## PDF text
+
+Two backends, picked by `--pdf-backend`:
+
+| Backend | Needs | Notes |
+| --- | --- | --- |
+| `pdftotext` | `poppler-utils` | joins words hyphenated across lines, normalizes ligatures, better at multi-column reading order |
+| `pypdf` | nothing extra | pure Python fallback, returns the text in the order the file stores it |
+
+`auto` (the default) uses `pdftotext` when poppler is installed. It is
+worth having: a paper that pypdf reads as `cosine- similarity` and
+`out- perform` comes out as real words, which is the difference
+between a listenable paragraph and a stuttering one.
+
+```sh
+sudo apt install poppler-utils
+```
+
 ## Reading dictionary (fix misreads)
 
 TTS engines mangle acronyms and names. Give the tool a TSV file of
@@ -223,6 +242,7 @@ are.
 | `--gap-ms` | `200` | silence between lines, in ms |
 | `--max-chars` | `60` | max characters per subtitle line |
 | `--type` | `md` | how to read stdin when the input is `-`: `md`, `txt`, `pdf` |
+| `--pdf-backend` | `auto` | `auto` / `pdftotext` / `pypdf` |
 | `--pages` | all | pdf page range: `3-10`, `5`, `3-` |
 | `--dict` | none | reading dictionary TSV (word TAB reading) |
 | `--jobs` | `4` | lines synthesized at once by the local engines. Piper loads its model per line, so lower it if memory is tight |
@@ -327,8 +347,8 @@ espeak-ng. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - VOICEVOX itself is free. When you publish the audio, add a credit
   line such as `VOICEVOX:ずんだもん`, and check the terms of the
   character you used.
-- PDF extraction is basic. Multi-column layouts can come out in the
-  wrong order ([#3](https://github.com/hjosugi/iroha-reader-cli/issues/3)).
+- PDF extraction is only as good as the backend. Install
+  `poppler-utils` for the better one; see [PDF text](#pdf-text).
 - Timestamps are line level. Word level (Enhanced LRC) is
   [#1](https://github.com/hjosugi/iroha-reader-cli/issues/1).
 - Piper has no official Japanese voice, so Japanese stays on Open
