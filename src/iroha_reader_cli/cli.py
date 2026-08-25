@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
                         "One input file only")
     p.add_argument("--config", type=Path, default=None,
                    help=f"config file (default: {config.default_path()})")
+    p.add_argument("--profile", default=None,
+                   help="use a [profile.NAME] table from the config file")
     p.add_argument("--engine", choices=list(engines.ENGINE_NAMES), default=engines.AUTO,
                    help="tts engine (default: auto = openjtalk for Japanese, "
                         "piper for other languages, espeak as the fallback; "
@@ -176,10 +178,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     # Pass 1: find --config, so the file can supply the defaults for pass 2.
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--config", type=Path, default=None)
+    pre.add_argument("--profile", default=None)
     known, _ = pre.parse_known_args(argv)
 
     parser = build_parser()
-    file_config = config.load(known.config)
+    file_config = config.select_profile(config.load(known.config), known.profile)
     if file_config:
         valid = set(vars(parser.parse_args([])))
         defaults, unknown = config.to_defaults(file_config, valid, CONFIG_ALIASES)

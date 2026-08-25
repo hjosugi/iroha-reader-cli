@@ -187,3 +187,29 @@ def test_dry_run_reads_stdin(monkeypatch: pytest.MonkeyPatch,
 class _FakeStdin:
     def __init__(self, data: bytes) -> None:
         self.buffer = io.BytesIO(data)
+
+
+def test_a_profile_supplies_defaults(tmp_path: Path) -> None:
+    config = tmp_path / "c.toml"
+    config.write_text(
+        'gap-ms = 200\n\n[profile.study]\nengine = "espeak"\nwpm = 220\n',
+        encoding="utf-8",
+    )
+    args = cli.parse_args(["a.md", "--config", str(config), "--profile", "study"])
+    assert (args.engine, args.wpm, args.gap_ms) == ("espeak", 220, 200)
+
+
+def test_the_command_line_beats_a_profile(tmp_path: Path) -> None:
+    config = tmp_path / "c.toml"
+    config.write_text('[profile.study]\nwpm = 220\n', encoding="utf-8")
+    args = cli.parse_args(["a.md", "--config", str(config), "--profile", "study",
+                           "--wpm", "150"])
+    assert args.wpm == 150
+
+
+def test_the_profile_table_is_not_read_as_a_setting(tmp_path: Path,
+                                                    capsys: pytest.CaptureFixture[str]) -> None:
+    config = tmp_path / "c.toml"
+    config.write_text('[profile.study]\nwpm = 220\n', encoding="utf-8")
+    cli.parse_args(["a.md", "--config", str(config)])
+    assert "unknown config key" not in capsys.readouterr().err

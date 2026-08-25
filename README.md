@@ -180,6 +180,32 @@ subs = ["lrc", "srt"]
 
 Use `--config other.toml` to point somewhere else.
 
+### Profiles
+
+One file can hold several setups. Reading a paper and falling asleep
+to one are not the same settings:
+
+```toml
+gap-ms = 200
+
+[profile.study]
+engine = "voicevox"
+vv-speed = 1.3
+subs = ["lrc", "srt"]
+
+[profile.relax]
+engine = "openjtalk"
+speed = 0.9
+```
+
+```sh
+iroha-reader-cli notes.md --profile study
+```
+
+Profile keys win over the top level ones, and the command line wins
+over both. Naming a profile that is not there lists the ones that
+are.
+
 ## Options
 
 | Option | Default | Meaning |
@@ -188,6 +214,7 @@ Use `--config other.toml` to point somewhere else.
 | `-o`, `--outdir` | next to the input | output directory |
 | `--name` | the input name | output base name (one input file only) |
 | `--config` | `~/.config/iroha-reader-cli/config.toml` | config file |
+| `--profile` | none | use a `[profile.NAME]` table from the config file |
 | `--list-speakers` | off | list the voices of the chosen engine and exit |
 | `--format` | `mp3` | `mp3` or `wav` |
 | `--bitrate` | `64k` | mp3 bitrate, like `128k` |

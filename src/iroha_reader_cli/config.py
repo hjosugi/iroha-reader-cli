@@ -41,6 +41,32 @@ def load(explicit: Path | None = None) -> dict[str, Any]:
         raise ReaderError(f"cannot read config file {path}: {err}") from err
 
 
+PROFILE_TABLE = "profile"
+
+
+def select_profile(config: dict[str, Any], name: str | None) -> dict[str, Any]:
+    """Fold one [profile.NAME] table into the top level keys.
+
+    Profile keys win over the top level ones; the command line still
+    wins over both.
+    """
+    profiles = config.get(PROFILE_TABLE) or {}
+    base = {key: value for key, value in config.items() if key != PROFILE_TABLE}
+    if name is None:
+        return base
+    if not isinstance(profiles, dict) or name not in profiles:
+        known = ", ".join(sorted(profiles)) if isinstance(profiles, dict) else ""
+        raise ReaderError(
+            f"profile not found: {name}. "
+            f"Profiles in the config file: {known or 'none'}"
+        )
+    chosen = profiles[name]
+    if not isinstance(chosen, dict):
+        raise ReaderError(f"[{PROFILE_TABLE}.{name}] must be a table of settings")
+    base.update(chosen)
+    return base
+
+
 def to_defaults(config: dict[str, Any], valid: set[str],
                 aliases: dict[str, str] | None = None) -> tuple[dict[str, Any], list[str]]:
     """Map config keys onto argparse destinations.

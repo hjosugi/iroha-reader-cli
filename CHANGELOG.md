@@ -11,6 +11,10 @@ and this project uses [semantic versioning](https://semver.org/).
   {md,txt,pdf}` in place of the missing file suffix. The output goes
   to the current directory as `stdin.*`, or wherever `--name` and
   `-o` say ([#12](https://github.com/hjosugi/iroha-reader-cli/issues/12)).
+- `--profile NAME` reads a `[profile.NAME]` table from the config
+  file, so one file can hold several setups. Profile keys beat the
+  top level ones, the command line beats both
+  ([#10](https://github.com/hjosugi/iroha-reader-cli/issues/10)).
 
 ## [0.8.0] - 2026-08-26
 

@@ -52,3 +52,34 @@ def test_to_defaults_maps_dashes_and_aliases() -> None:
     )
     assert defaults == {"gap_ms": 150, "dict_file": "d.tsv"}
     assert unknown == ["nope"]
+
+
+def test_a_profile_overrides_the_top_level_keys() -> None:
+    merged = config.select_profile(
+        {"engine": "espeak", "gap-ms": 200,
+         "profile": {"study": {"engine": "voicevox", "vv-speed": 1.3}}},
+        "study",
+    )
+    assert merged == {"engine": "voicevox", "gap-ms": 200, "vv-speed": 1.3}
+
+
+def test_without_a_profile_only_the_top_level_keys_are_used() -> None:
+    merged = config.select_profile(
+        {"engine": "espeak", "profile": {"study": {"engine": "voicevox"}}}, None
+    )
+    assert merged == {"engine": "espeak"}
+
+
+def test_an_unknown_profile_lists_the_ones_that_exist() -> None:
+    with pytest.raises(ReaderError, match="relax, study"):
+        config.select_profile({"profile": {"study": {}, "relax": {}}}, "focus")
+
+
+def test_a_profile_without_a_config_file_says_so() -> None:
+    with pytest.raises(ReaderError, match="none"):
+        config.select_profile({}, "study")
+
+
+def test_a_profile_must_be_a_table() -> None:
+    with pytest.raises(ReaderError, match="table of settings"):
+        config.select_profile({"profile": {"study": "espeak"}}, "study")
