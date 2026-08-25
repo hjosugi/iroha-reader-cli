@@ -58,3 +58,41 @@ def test_only_the_first_line_of_a_heading_is_marked() -> None:
     lines = segment_blocks(blocks, max_chars=20)
     assert lines[0].heading == 2
     assert [line.heading for line in lines[1:]] == [None] * (len(lines) - 1)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Dr. Smith went home. He slept.", ["Dr. Smith went home.", "He slept."]),
+        ("J. R. R. Tolkien wrote it. Twice.",
+         ["J. R. R. Tolkien wrote it.", "Twice."]),
+        ("See fig. 3 for details. Then stop.",
+         ["See fig. 3 for details.", "Then stop."]),
+        ("Use e.g. this thing. Or that one.",
+         ["Use e.g. this thing.", "Or that one."]),
+        ("It cost 5 vs. 6 pounds. Cheap.", ["It cost 5 vs. 6 pounds.", "Cheap."]),
+    ],
+)
+def test_an_abbreviation_does_not_end_a_sentence(text: str,
+                                                 expected: list[str]) -> None:
+    assert split_sentences(text) == expected
+
+
+def test_a_real_sentence_end_still_ends_it() -> None:
+    assert split_sentences("It ended. The end.") == ["It ended.", "The end."]
+
+
+def test_a_closing_bracket_stays_with_its_sentence() -> None:
+    assert split_sentences("「こんにちは。」と彼は言った。次の文です。") == [
+        "「こんにちは。」", "と彼は言った。", "次の文です。",
+    ]
+    assert split_sentences('He said "stop." Then he left.') == [
+        'He said "stop."', "Then he left.",
+    ]
+
+
+def test_a_lower_case_start_rejoins() -> None:
+    # A sentence does not start in the middle of a word like this.
+    assert split_sentences("Version 2. beta was released.") == [
+        "Version 2. beta was released.",
+    ]

@@ -3,6 +3,19 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Sentences no longer break at an abbreviation. `Dr. Smith went home.`
+  was three lines (`Dr.`, `Smith went home.`), and so were initials
+  like `J. R. R. Tolkien` and references like `see fig. 3`. A full
+  stop after a known abbreviation or a single letter, or before a
+  lower case word, no longer ends a sentence.
+- A closing quote or bracket stays with the sentence it closes.
+  `「こんにちは。」` used to leave `」` stranded at the start of the
+  next line, and `he said "stop." Then...` did not split at all.
+
 ## [0.11.0] - 2026-08-26
 
 ### Added

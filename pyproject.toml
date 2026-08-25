@@ -90,7 +90,7 @@ ignore = [
   "SIM108",  # ternaries are not always clearer
 ]
 # This tool reads Japanese, so full width punctuation is the point, not a typo.
-allowed-confusables = ["。", "．", "！", "？", "、", "："]
+allowed-confusables = ["。", "．", "！", "？", "、", "：", "）", "”", "’"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG001", "ARG002", "S101"]

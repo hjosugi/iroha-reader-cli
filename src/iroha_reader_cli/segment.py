@@ -14,9 +14,36 @@ from .document import Block, Line
 DEFAULT_MAX_CHARS = 60
 
 _JA_CHARS = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
-_SENTENCE_END = re.compile(r"(?<=[。．！？!?])\s*")
+#: Closing quotes and brackets that belong to the sentence before them.
+_CLOSERS = "」』）\u201d\u2019\"'"
+#: Split after a sentence ender, or after the closer that follows it, so
+#: 「こんにちは。」 stays in one piece.
+_SENTENCE_END = re.compile(
+    rf"(?<=[。．！？!?][{_CLOSERS}])\s*"
+    rf"|(?<=[。．！？!?])(?![{_CLOSERS}])\s*"
+)
 # A '.' ends a sentence only when whitespace follows, so 3.14 stays whole.
-_LATIN_END = re.compile(r"(?<=\.)\s+")
+# The closer may sit between the two: `he said "stop." Then...`.
+_LATIN_END = re.compile(
+    rf"(?<=\.)(?![{_CLOSERS}])\s+"
+    rf"|(?<=\.[{_CLOSERS}])\s+"
+)
+#: Words that end in a full stop without ending the sentence.
+_ABBREVIATION_WORDS = (
+    # titles
+    "mr mrs ms dr prof sr jr st rev hon gen col sgt lt capt "
+    # latin and shorthand
+    "vs etc e.g i.e cf al ca approx "
+    # references
+    "fig figs no nos vol vols pp ed eds ch chap sec "
+    # organisations
+    "inc ltd co corp dept est univ "
+    # months and days
+    "jan feb mar apr jun jul aug sept sep oct nov dec "
+    "mon tue tues wed thu thur thurs fri sat sun"
+)
+ABBREVIATIONS = frozenset(_ABBREVIATION_WORDS.split())
+_LAST_WORD = re.compile(r"([\w.]+)\.$")
 _PARAGRAPH = re.compile(r"\n\s*\n")
 _INNER_NEWLINE = re.compile(r"\s*\n\s*")
 # A chunk with no letters or digits (bullets, rules) is not worth speaking.
@@ -28,11 +55,31 @@ def has_japanese(text: str) -> bool:
     return _JA_CHARS.search(text) is not None
 
 
+def _ends_mid_sentence(chunk: str) -> bool:
+    """True when a chunk ends in a full stop that is not a full stop.
+
+    `Dr.`, `e.g.`, and the `J.` of `J. R. R. Tolkien` all look like
+    sentence ends to a regular expression.
+    """
+    match = _LAST_WORD.search(chunk.rstrip())
+    if match is None:
+        return False
+    word = match.group(1).lower().rstrip(".")
+    return len(word) == 1 or word in ABBREVIATIONS
+
+
 def split_sentences(text: str) -> list[str]:
     """Split one paragraph into sentences."""
     parts: list[str] = []
     for chunk in _SENTENCE_END.split(text):
-        parts.extend(_LATIN_END.split(chunk))
+        for piece in _LATIN_END.split(chunk):
+            # A lower case start, or an abbreviation before it, means the
+            # sentence did not actually end there.
+            if parts and (_ends_mid_sentence(parts[-1])
+                          or (piece[:1].islower() and parts[-1].endswith("."))):
+                parts[-1] = f"{parts[-1].rstrip()} {piece.lstrip()}"
+            else:
+                parts.append(piece)
     return [part.strip() for part in parts if part.strip()]
 
 
