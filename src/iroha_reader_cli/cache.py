@@ -8,6 +8,7 @@ engine setting that can change how it sounds.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -22,6 +23,8 @@ from .reporting import Reporter
 from .timeline import Word
 
 APP_NAME = "iroha-reader-cli"
+#: Cache size the CLI keeps to by default. 0 means no limit.
+DEFAULT_MAX_MB = 2048
 
 
 def default_dir() -> Path:
@@ -50,7 +53,12 @@ class SegmentCache:
 
     def get(self, key: str, ext: str) -> Path | None:
         path = self.path_for(key, ext)
-        return path if path.is_file() else None
+        if not path.is_file():
+            return None
+        # Touch it so pruning keeps what is actually being used.
+        with contextlib.suppress(OSError):
+            os.utime(path)
+        return path
 
     def get_words(self, key: str) -> list[Word] | None:
         """Read the word timings stored beside a segment, if any."""
@@ -81,6 +89,48 @@ class SegmentCache:
         staged = path.with_suffix(path.suffix + f".{os.getpid()}.part")
         staged.write_bytes(payload)
         staged.replace(path)  # atomic, so a reader never sees half a file
+
+    def entries(self) -> list[tuple[float, int, Path]]:
+        """Every cached file as (mtime, size, path), oldest first."""
+        found: list[tuple[float, int, Path]] = []
+        if not self.root.is_dir():
+            return found
+        for path in self.root.rglob("*"):
+            try:
+                if path.is_file():
+                    stat = path.stat()
+                    found.append((stat.st_mtime, stat.st_size, path))
+            except OSError:
+                continue
+        found.sort()
+        return found
+
+    def prune(self, max_bytes: int) -> tuple[int, int]:
+        """Drop the least recently used files until the cache fits.
+
+        Returns (files removed, bytes freed). A cap of 0 or less means
+        no limit, and nothing is touched.
+        """
+        if max_bytes <= 0:
+            return (0, 0)
+        found = self.entries()
+        total = sum(size for _mtime, size, _path in found)
+        removed = 0
+        freed = 0
+        for _mtime, _size, path in found:
+            if total <= max_bytes:
+                break
+            # The word timings live beside their segment; drop both.
+            for victim in (path, path.with_suffix(".json")):
+                try:
+                    gone = victim.stat().st_size
+                    victim.unlink()
+                except OSError:
+                    continue
+                total -= gone
+                freed += gone
+                removed += 1
+        return removed, freed
 
     def clear(self) -> tuple[int, int]:
         """Delete everything. Returns (files removed, bytes freed)."""

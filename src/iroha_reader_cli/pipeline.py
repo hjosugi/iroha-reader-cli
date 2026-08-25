@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import audio, document, extract, segment, subtitles
+from . import cache as cache_module
 from .audio import ChapterMark
 from .cache import CachedEngine, SegmentCache
 from .document import Line
@@ -51,6 +52,8 @@ class ConvertOptions:
     source_label: str | None = None
     use_cache: bool = True
     cache_dir: Path | None = None
+    #: Megabytes of cache to keep. 0 means keep everything.
+    cache_max_mb: int = cache_module.DEFAULT_MAX_MB
     #: Write markdown headings into the audio file as chapters.
     chapters: bool = True
     chapter_level: int = DEFAULT_CHAPTER_LEVEL
@@ -239,7 +242,9 @@ def convert(path: Path, options: ConvertOptions,
     settings = settings if settings is not None else EngineSettings()
     reporter = reporter if reporter is not None else Reporter(quiet=True)
     lines, outdir, stem, engine = _open(path, options, settings, reporter)
-    return _render(lines, path, outdir, stem, options, engine, reporter)
+    result = _render(lines, path, outdir, stem, options, engine, reporter)
+    _prune_cache(options, reporter)
+    return result
 
 
 def convert_all(path: Path, options: ConvertOptions,
@@ -255,7 +260,9 @@ def convert_all(path: Path, options: ConvertOptions,
     lines, outdir, stem, engine = _open(path, options, settings, reporter)
 
     if options.split_level is None:
-        return [_render(lines, path, outdir, stem, options, engine, reporter)]
+        whole = _render(lines, path, outdir, stem, options, engine, reporter)
+        _prune_cache(options, reporter)
+        return [whole]
 
     parts = document.chapters(lines, options.split_level, title=stem)
     reporter.info(f"  chapters: {len(parts)}")
@@ -265,4 +272,16 @@ def convert_all(path: Path, options: ConvertOptions,
         reporter.info(f"  [{number}/{len(parts)}] {part.title}")
         results.append(_render(part.lines, path, outdir, name, options, engine,
                                reporter))
+    _prune_cache(options, reporter)
     return results
+
+
+def _prune_cache(options: ConvertOptions, reporter: Reporter) -> None:
+    """Keep the cache inside its size limit, oldest segments first."""
+    if not options.use_cache or options.cache_max_mb <= 0:
+        return
+    removed, freed = SegmentCache(options.cache_dir).prune(
+        options.cache_max_mb * 1_000_000
+    )
+    if removed:
+        reporter.info(f"  cache: pruned {removed} files ({freed / 1_000_000:.0f} MB)")

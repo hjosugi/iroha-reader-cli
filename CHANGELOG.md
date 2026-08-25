@@ -9,6 +9,9 @@ and this project uses [semantic versioning](https://semver.org/).
 
 - `irh` as a second name for the command, for the many times a day
   you type it. `--help` shows whichever name you used.
+- The cache keeps itself under a size limit (2 GB by default,
+  `--cache-max-mb`), dropping whatever has gone longest unused. A
+  cache hit counts as use, so what you actually listen to stays.
 - `--speed` now works with every engine, not just Open JTalk: each one
   is told in its own units (words per minute, length scale,
   speedScale, a percentage). The engine specific flags still win when

@@ -336,6 +336,7 @@ are.
 | `--jobs` | `4` | lines synthesized at once by the local engines. Piper loads its model per line, so lower it if memory is tight |
 | `--no-cache` | off | synthesize every line again |
 | `--cache-dir` | `~/.cache/iroha-reader-cli/segments` | where segments are cached |
+| `--cache-max-mb` | `2048` | how much cache to keep; `0` keeps everything |
 | `--clear-cache` | off | delete the cached segments and exit |
 | `--keep-code` | off | read markdown code blocks out loud too |
 | `--write-text` | off | also save the lines as `.lines.txt` |
@@ -426,13 +427,18 @@ $ iroha-reader-cli notes.md
 
 A line that appears twice in one document is spoken once, even on the
 first run. Cached segments live in
-`~/.cache/iroha-reader-cli/segments` and nothing evicts them yet, so:
+`~/.cache/iroha-reader-cli/segments`, and the cache keeps itself
+under 2 GB by dropping whatever has gone longest unused:
 
 ```sh
-iroha-reader-cli --clear-cache          # delete them, report what was freed
-iroha-reader-cli notes.md --no-cache    # ignore the cache for this run
-iroha-reader-cli notes.md --cache-dir /tmp/cache
+irh --clear-cache                 # delete it all, report what was freed
+irh notes.md --no-cache           # ignore the cache for this run
+irh notes.md --cache-max-mb 0     # let it grow without limit
+irh notes.md --cache-dir /tmp/cache
 ```
+
+A twelve hour audiobook is about 2 GB of segments, so one book fills
+it. That is the point of the limit.
 
 Changing the voice, the speed, the pitch, or the voice file itself
 misses the cache on purpose. `--gap-ms`, `--bitrate`, and `--loudnorm`

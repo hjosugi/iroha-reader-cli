@@ -152,6 +152,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="synthesize every line again, ignoring the cache")
     p.add_argument("--cache-dir", type=Path, default=None,
                    help=f"where segments are cached (default: {cache.default_dir()})")
+    p.add_argument("--cache-max-mb", type=int, default=cache.DEFAULT_MAX_MB,
+                   help="how much cache to keep, in MB. 0 keeps everything "
+                        f"(default: {cache.DEFAULT_MAX_MB})")
     p.add_argument("--clear-cache", action="store_true",
                    help="delete the cached segments and exit")
     p.add_argument("--jobs", type=int, default=4,
@@ -282,6 +285,7 @@ def build_options(args: argparse.Namespace) -> ConvertOptions:
         write_text=args.write_text,
         use_cache=args.use_cache,
         cache_dir=args.cache_dir,
+        cache_max_mb=args.cache_max_mb,
         chapters=args.chapters,
         chapter_level=args.chapter_level,
         split_level=args.split_level,

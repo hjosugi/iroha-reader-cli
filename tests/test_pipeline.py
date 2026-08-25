@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -250,3 +251,35 @@ def test_without_splitting_convert_all_returns_one(tmp_path: Path,
 def test_a_silly_heading_level_is_rejected(level: int) -> None:
     with pytest.raises(ReaderError, match="between 1 and 6"):
         ConvertOptions(split_level=level).validate()
+
+
+def test_the_cache_is_kept_inside_its_limit(tmp_path: Path,
+                                            fake_engine: FakeEngine) -> None:
+    from iroha_reader_cli.cache import SegmentCache
+
+    store = tmp_path / "cache"
+    options = ConvertOptions(cache_dir=store, cache_max_mb=1)
+    # Something big and old is already in there.
+    old = tmp_path / "old.wav"
+    old.write_bytes(b"x" * 2_000_000)
+    cache = SegmentCache(store)
+    cache.put("f" * 32, "wav", old)
+    os.utime(cache.path_for("f" * 32, "wav"), (1_000_000, 1_000_000))
+
+    convert(write_source(tmp_path), options)
+
+    assert cache.get("f" * 32, "wav") is None
+
+
+def test_pruning_can_be_turned_off(tmp_path: Path, fake_engine: FakeEngine) -> None:
+    from iroha_reader_cli.cache import SegmentCache
+
+    store = tmp_path / "cache"
+    old = tmp_path / "old.wav"
+    old.write_bytes(b"x" * 2_000_000)
+    cache = SegmentCache(store)
+    cache.put("f" * 32, "wav", old)
+
+    convert(write_source(tmp_path), ConvertOptions(cache_dir=store, cache_max_mb=0))
+
+    assert cache.get("f" * 32, "wav") is not None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -241,3 +242,64 @@ def test_a_hit_without_word_timings_is_a_miss(tmp_path: Path) -> None:
     CachedEngine(talker, cache).synth_all(["hello there"], outdir(tmp_path, "b"),
                                           Reporter(quiet=True))
     assert talker.calls == ["hello there"]
+
+
+def fill(cache: SegmentCache, count: int, size: int = 1000) -> None:
+    """Store `count` segments, oldest first."""
+    source = Path(cache.root).parent / "seed.wav"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(b"x" * size)
+    for index in range(count):
+        cache.put(f"{index:032x}", "wav", source)
+        path = cache.path_for(f"{index:032x}", "wav")
+        os.utime(path, (1_000_000 + index, 1_000_000 + index))
+
+
+def test_pruning_drops_the_oldest_first(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    fill(cache, 10)
+
+    removed, freed = cache.prune(5_000)
+
+    assert removed == 5
+    assert freed == 5_000
+    assert cache.get(f"{0:032x}", "wav") is None
+    assert cache.get(f"{9:032x}", "wav") is not None
+
+
+def test_pruning_stops_once_it_fits(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    fill(cache, 4)
+    assert cache.prune(1_000_000) == (0, 0)
+
+
+def test_no_limit_means_no_pruning(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    fill(cache, 4)
+    assert cache.prune(0) == (0, 0)
+    assert len(cache.entries()) == 4
+
+
+def test_word_timings_go_with_their_segment(tmp_path: Path) -> None:
+    from iroha_reader_cli.timeline import Word
+
+    cache = SegmentCache(tmp_path / "store")
+    source = tmp_path / "seed.wav"
+    source.write_bytes(b"x" * 4000)
+    cache.put("aa" * 16, "wav", source, [Word("hello", 0.0, 0.5)])
+    assert cache.get_words("aa" * 16) is not None
+
+    cache.prune(1)
+    assert cache.get("aa" * 16, "wav") is None
+    assert cache.get_words("aa" * 16) is None
+
+
+def test_a_hit_keeps_a_segment_alive(tmp_path: Path) -> None:
+    cache = SegmentCache(tmp_path / "store")
+    fill(cache, 4)
+    # Using the oldest entry makes it the newest.
+    assert cache.get(f"{0:032x}", "wav") is not None
+
+    cache.prune(2_000)
+    assert cache.get(f"{0:032x}", "wav") is not None
+    assert cache.get(f"{1:032x}", "wav") is None
