@@ -1,0 +1,44 @@
+name: Something is wrong
+description: A crash, a wrong timestamp, an engine that will not start
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran and what came out. Paste the error as it is.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`iroha-reader-cli --version`, and how you installed it"
+      placeholder: "0.11.0, uv tool install from git"
+    validations:
+      required: true
+
+  - type: input
+    id: engine
+    attributes:
+      label: Engine and system
+      placeholder: "piper on Ubuntu 24.04, ffmpeg 7.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: The document, if you can share it
+      description: >
+        A few lines that reproduce it are enough. `--dry-run` output
+        often shows the problem without any audio.
