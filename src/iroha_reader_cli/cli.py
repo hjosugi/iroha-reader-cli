@@ -14,7 +14,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any
 
-from . import __version__, audio, cache, config, engines, extract, speakers, subtitles
+from . import (
+    __version__,
+    audio,
+    cache,
+    config,
+    engines,
+    extract,
+    server,
+    speakers,
+    subtitles,
+)
 from .engines import EngineSettings, edge, openjtalk, piper, voicevox
 from .errors import ReaderError
 from .pipeline import (
@@ -81,6 +91,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "all free and local)")
     p.add_argument("--list-speakers", action="store_true",
                    help="list the voices of the chosen engine and exit")
+    p.add_argument("--serve", action="store_true",
+                   help="open a local web page instead: drop a document on it "
+                        "and watch the text keep time with the audio")
+    p.add_argument("--host", default=server.DEFAULT_HOST,
+                   help=f"address for --serve (default: {server.DEFAULT_HOST})")
+    p.add_argument("--port", type=int, default=server.DEFAULT_PORT,
+                   help=f"port for --serve (default: {server.DEFAULT_PORT})")
+    p.add_argument("--no-browser", dest="open_browser", action="store_false",
+                   help="do not open a browser window for --serve")
     p.add_argument("--format", dest="audio_format", choices=list(AUDIO_FORMATS),
                    default="mp3", help="output audio format (default: mp3)")
     p.add_argument("--bitrate", default="64k",
@@ -300,6 +319,13 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     if args.list_speakers:
         speakers.list_speakers(settings)
+        return EXIT_OK
+
+    if args.serve:
+        audio.check_tools()
+        server.serve(build_options(args), settings, reporter,
+                     host=args.host, port=args.port,
+                     open_browser=args.open_browser)
         return EXIT_OK
 
     if args.clear_cache:

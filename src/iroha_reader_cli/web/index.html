@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iroha-reader-cli</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f6fb; --panel: #ffffff; --ink: #1d1a26; --muted: #6b6880;
+    --line: #e4e1ee; --accent: #6b4fa0; --accent-soft: #efe9fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17141f; --panel: #201b2c; --ink: #f2eaff; --muted: #a49dba;
+      --line: #322a44; --accent: #b69be8; --accent-soft: #2c2440;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  h1 span { color: var(--accent); }
+  p.lede { margin: 0 0 2rem; color: var(--muted); }
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 1.25rem; margin-bottom: 1.25rem;
+  }
+  #drop {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 2rem 1rem;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  #drop strong { display: block; font-size: 1.05rem; }
+  #drop small { color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1rem; }
+  label { color: var(--muted); font-size: .9rem; }
+  select, button {
+    font: inherit; color: inherit; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 9px; padding: .45rem .7rem;
+  }
+  button.go {
+    background: var(--accent); color: #fff; border-color: transparent;
+    font-weight: 600; cursor: pointer; padding: .5rem 1.2rem;
+  }
+  button.go[disabled] { opacity: .55; cursor: default; }
+  #status { margin-top: .9rem; color: var(--muted); min-height: 1.5rem; }
+  #status.error { color: #c2405a; }
+  audio { width: 100%; margin-bottom: .75rem; }
+  #meta { color: var(--muted); font-size: .9rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+  #meta a { color: var(--accent); }
+  #lines { margin-top: 1rem; max-height: 26rem; overflow-y: auto; }
+  #lines p {
+    margin: 0; padding: .3rem .6rem; border-radius: 8px; cursor: pointer;
+    color: var(--muted); transition: color .1s, background .1s;
+  }
+  #lines p:hover { background: var(--accent-soft); }
+  #lines p.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+  #lines p.head { color: var(--ink); font-weight: 700; margin-top: .6rem; }
+  #lines time { font-variant-numeric: tabular-nums; color: var(--muted);
+                font-size: .78rem; margin-right: .55rem; }
+  .hidden { display: none; }
+  footer { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 2rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>iroha<span>-reader-cli</span></h1>
+  <p class="lede">Drop a document. Get it read out loud, with the text keeping time.</p>
+
+  <section>
+    <div id="drop">
+      <strong id="dropTitle">Choose a document</strong>
+      <small>.md, .epub, .pdf, .txt &mdash; or drop one here</small>
+      <input id="file" type="file" class="hidden"
+             accept=".md,.markdown,.epub,.pdf,.txt,.text">
+    </div>
+    <div class="row">
+      <label for="engine">Voice</label>
+      <select id="engine">
+        <option value="auto">auto (best local)</option>
+        <option value="openjtalk">openjtalk (Japanese, offline)</option>
+        <option value="piper">piper (neural, offline)</option>
+        <option value="espeak">espeak (offline, basic)</option>
+        <option value="voicevox">voicevox (local server)</option>
+        <option value="edge">edge (online)</option>
+      </select>
+      <label><input type="checkbox" id="words"> word timing (edge only)</label>
+      <button class="go" id="go" disabled>Read it</button>
+    </div>
+    <div id="status"></div>
+  </section>
+
+  <section id="result" class="hidden">
+    <audio id="audio" controls preload="metadata"></audio>
+    <div id="meta"></div>
+    <div id="lines"></div>
+  </section>
+
+  <footer>Everything runs on this machine. Files disappear when the server stops.</footer>
+</main>
+
+<script>
+(function () {
+  const drop = document.getElementById('drop');
+  const dropTitle = document.getElementById('dropTitle');
+  const filePicker = document.getElementById('file');
+  const go = document.getElementById('go');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const audio = document.getElementById('audio');
+  const meta = document.getElementById('meta');
+  const linesBox = document.getElementById('lines');
+
+  const TYPES = { md: 'md', markdown: 'md', epub: 'epub', pdf: 'pdf', txt: 'txt', text: 'txt' };
+  let chosen = null;
+  let lines = [];
+  let current = -1;
+
+  function say(text, isError) {
+    status.textContent = text;
+    status.className = isError ? 'error' : '';
+  }
+
+  function pick(file) {
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!TYPES[ext]) {
+      say('That is a .' + ext + ' file. Use md, epub, pdf, or txt.', true);
+      return;
+    }
+    chosen = file;
+    dropTitle.textContent = file.name;
+    go.disabled = false;
+    say('');
+  }
+
+  drop.addEventListener('click', () => filePicker.click());
+  filePicker.addEventListener('change', () => pick(filePicker.files[0]));
+  ['dragenter', 'dragover'].forEach(name =>
+    drop.addEventListener(name, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(name =>
+    drop.addEventListener(name, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+
+  function clock(seconds) {
+    const whole = Math.max(0, Math.floor(seconds));
+    return String(Math.floor(whole / 60)).padStart(2, '0') + ':' +
+           String(whole % 60).padStart(2, '0');
+  }
+
+  function show(data) {
+    lines = data.lines;
+    current = -1;
+    audio.src = data.audio;
+    audio.load();
+
+    const links = data.files.map(url =>
+      '<a href="' + url + '" download>' + url.split('.').pop().toUpperCase() + '</a>');
+    meta.innerHTML =
+      '<span>' + data.engine + '</span>' +
+      '<span>' + data.lines.length + ' lines</span>' +
+      '<span>' + clock(data.total) + '</span>' +
+      (data.chapters.length ? '<span>' + data.chapters.length + ' chapters</span>' : '') +
+      '<span>' + links.join(' ') + '</span>';
+
+    linesBox.innerHTML = '';
+    lines.forEach((line, index) => {
+      const node = document.createElement('p');
+      if (line.heading) node.className = 'head';
+      node.innerHTML = '<time>' + clock(line.start) + '</time>';
+      node.appendChild(document.createTextNode(line.text));
+      node.addEventListener('click', () => {
+        audio.currentTime = line.start + 0.01;
+        audio.play();
+      });
+      linesBox.appendChild(node);
+      lines[index].node = node;
+    });
+    result.classList.remove('hidden');
+  }
+
+  function highlight() {
+    const now = audio.currentTime;
+    let index = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].start <= now) index = i; else break;
+    }
+    if (index === current) return;
+    if (current >= 0) lines[current].node.classList.remove('on');
+    current = index;
+    if (current < 0) return;
+    const node = lines[current].node;
+    node.classList.add('on');
+    const box = linesBox.getBoundingClientRect();
+    const spot = node.getBoundingClientRect();
+    if (spot.top < box.top || spot.bottom > box.bottom) {
+      linesBox.scrollTop += spot.top - box.top - box.height / 3;
+    }
+  }
+
+  audio.addEventListener('timeupdate', highlight);
+  audio.addEventListener('seeked', highlight);
+
+  go.addEventListener('click', async () => {
+    if (!chosen) return;
+    const ext = (chosen.name.split('.').pop() || '').toLowerCase();
+    const params = new URLSearchParams({
+      name: chosen.name,
+      type: TYPES[ext] || 'md',
+      engine: document.getElementById('engine').value,
+      words: document.getElementById('words').checked ? '1' : '0'
+    });
+    go.disabled = true;
+    say('Reading it out loud. Long documents take a while...');
+    try {
+      const response = await fetch('/api/convert?' + params.toString(),
+                                   { method: 'POST', body: chosen });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'that did not work');
+      show(data);
+      say('Done. Click any line to jump there.');
+    } catch (err) {
+      say(String(err.message || err), true);
+    } finally {
+      go.disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

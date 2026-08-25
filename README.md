@@ -14,6 +14,9 @@ Read a document out loud and get the subtitles for free.
 ```sh
 iroha-reader-cli notes.md
 # notes.mp3 + notes.lrc, next to the input
+
+iroha-reader-cli --serve
+# ...or drop a file on a page and listen to it there
 ```
 
 Every line in the LRC carries a start time, so a music player can
@@ -40,6 +43,24 @@ Each line is synthesized on its own, measured with `ffprobe`, and only
 then are the segments joined with exactly the gaps the timeline
 assumes. No speech recognition, no forced alignment, nothing to drift.
 The test suite checks that claim on every run.
+
+## The reading room
+
+`--serve` opens one page on this machine. Drop a document on it and
+it comes back read out loud, with the text keeping time and every
+line clickable:
+
+```sh
+iroha-reader-cli --serve
+# reading room: http://127.0.0.1:8765/
+```
+
+![The web UI: a document converted, with the current line highlighted](docs/web-ui.png)
+
+It is the standard library only, it binds to localhost, and the files
+live in a temporary directory that goes away when you stop the
+server. `--port`, `--host`, and `--no-browser` are there if you need
+them.
 
 ## Word level timing
 
@@ -282,6 +303,10 @@ are.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `--serve` | off | open the local web page instead of converting a file |
+| `--port` | `8765` | port for `--serve` |
+| `--host` | `127.0.0.1` | address for `--serve` |
+| `--no-browser` | off | do not open a browser for `--serve` |
 | `--engine` | `auto` | `auto` / `openjtalk` / `piper` / `espeak` / `voicevox` / `edge` |
 | `-o`, `--outdir` | next to the input | output directory |
 | `--name` | the input name | output base name (one input file only) |

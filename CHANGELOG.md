@@ -12,6 +12,13 @@ and this project uses [semantic versioning](https://semver.org/).
   own architecture before publishing
   ([#11](https://github.com/hjosugi/iroha-reader-cli/issues/11)).
 
+- `--serve`: a local web page. Drop a document on it, get the audio
+  back with the text highlighting itself line by line, every line
+  clickable to jump there, and the mp3 and subtitles a click away.
+  Standard library only, bound to localhost, files kept in a
+  temporary directory for the life of the server
+  ([#2](https://github.com/hjosugi/iroha-reader-cli/issues/2)).
+
 ### Changed
 
 - The plain binary asset is named after its architecture:
