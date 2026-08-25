@@ -439,7 +439,7 @@ floor.
 
 ```sh
 uv sync              # create .venv and install everything
-uv run pytest        # 98 tests, about two seconds
+uv run pytest        # 202 tests, about six seconds
 uv run ruff check .
 uv run mypy
 ```

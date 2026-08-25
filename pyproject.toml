@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "iroha-reader-cli"
 dynamic = ["version"]
-description = "Read documents out loud: md / pdf / txt to audio plus synced LRC / SRT / VTT subtitles"
+description = "Read documents out loud: md / epub / pdf / txt to audio plus synced LRC / SRT / VTT subtitles"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

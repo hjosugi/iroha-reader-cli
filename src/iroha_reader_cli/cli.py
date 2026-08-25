@@ -61,7 +61,7 @@ class _CommaAppend(argparse.Action):
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog=PROG,
-        description="Convert md / pdf / txt into audio plus synced subtitles.",
+        description="Convert md / epub / pdf / txt into audio plus synced subtitles.",
     )
     p.add_argument("inputs", nargs="*", type=Path,
                    help=f"input files ({' '.join(extract.SUPPORTED_SUFFIXES)}), "
