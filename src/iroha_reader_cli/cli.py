@@ -190,7 +190,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def build_options(args: argparse.Namespace) -> ConvertOptions:
     """Turn parsed flags into pipeline options."""
-    formats = tuple(args.subs) if args.subs else subtitles.DEFAULT_FORMATS
+    raw = args.subs
+    if isinstance(raw, str):
+        # A config file may write subs = "lrc,srt" instead of a list.
+        raw = [item.strip() for item in raw.split(",") if item.strip()]
+    formats = tuple(raw) if raw else subtitles.DEFAULT_FORMATS
     return ConvertOptions(
         outdir=Path(args.outdir) if args.outdir else None,
         name=args.name,

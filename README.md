@@ -192,7 +192,7 @@ Use `--config other.toml` to point somewhere else.
 | `--max-chars` | `60` | max characters per subtitle line |
 | `--pages` | all | pdf page range: `3-10`, `5`, `3-` |
 | `--dict` | none | reading dictionary TSV (word TAB reading) |
-| `--jobs` | `4` | lines synthesized at once by the local engines |
+| `--jobs` | `4` | lines synthesized at once by the local engines. Piper loads its model per line, so lower it if memory is tight |
 | `--keep-code` | off | read markdown code blocks out loud too |
 | `--write-text` | off | also save the lines as `.lines.txt` |
 | `--dry-run` | off | print the lines and exit |
@@ -248,7 +248,7 @@ floor.
 
 ```sh
 uv sync              # create .venv and install everything
-uv run pytest        # 97 tests, about two seconds
+uv run pytest        # 98 tests, about two seconds
 uv run ruff check .
 uv run mypy
 ```

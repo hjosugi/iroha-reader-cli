@@ -145,3 +145,10 @@ def test_dry_run_prints_the_lines(tmp_path: Path,
     out = capsys.readouterr()
     assert out.out == "Head\nBody text.\n"
     assert out.err == ""
+
+
+def test_subs_from_a_config_string(tmp_path: Path) -> None:
+    config = tmp_path / "c.toml"
+    config.write_text('subs = "lrc, vtt"\n', encoding="utf-8")
+    options = cli.build_options(cli.parse_args(["a.md", "--config", str(config)]))
+    assert options.subtitle_formats == ("lrc", "vtt")
