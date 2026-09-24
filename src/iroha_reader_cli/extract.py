@@ -6,7 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
-from . import epub
+from . import epub, install
 from .document import Block
 from .errors import MissingCommandError, ReaderError, UnsupportedInputError
 from .proc import run
@@ -151,8 +151,8 @@ def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None,
     if backend == PDFTOTEXT:
         if shutil.which(PDFTOTEXT) is None:
             raise MissingCommandError(
-                "pdftotext is missing. Install poppler-utils "
-                "(Debian/Ubuntu: sudo apt install poppler-utils), "
+                "pdftotext is missing. Install poppler "
+                f"{install.hint('poppler')}, "
                 "or use --pdf-backend pypdf."
             )
         return _pdf_with_pdftotext(path, pages)

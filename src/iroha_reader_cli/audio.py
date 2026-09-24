@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import install
 from .errors import CommandFailedError, MissingCommandError
 from .proc import run
 
@@ -22,7 +23,7 @@ def check_tools() -> None:
     if missing:
         raise MissingCommandError(
             f"missing commands: {', '.join(missing)}. "
-            "Install ffmpeg first (Debian/Ubuntu: sudo apt install ffmpeg)."
+            f"Install ffmpeg first {install.hint('ffmpeg')}."
         )
 
 

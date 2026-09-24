@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, TextIO
 
 from . import engines
-from .engines import EngineSettings, edge, openjtalk, piper, voicevox
+from .engines import EngineSettings, edge, espeak, openjtalk, piper, voicevox
 from .errors import EngineNotReadyError, MissingCommandError
 from .proc import run
 
@@ -83,10 +82,10 @@ def _print_edge(settings: EngineSettings, out: TextIO) -> None:
 
 
 def _print_espeak(settings: EngineSettings, out: TextIO) -> None:
-    if shutil.which(engines.EspeakEngine.command) is None:
-        raise MissingCommandError("espeak-ng is missing. Install it first: "
-                             "sudo apt install espeak-ng")
-    argv = [engines.EspeakEngine.command]
+    executable = espeak.find_command()
+    if executable is None:
+        raise MissingCommandError(espeak.missing_message())
+    argv = [executable]
     argv.append(f"--voices={settings.lang}" if settings.lang else "--voices")
     print("# espeak voices (use the language code with --lang)", file=out)
     print(run(argv).stdout.decode("utf-8", "replace").rstrip(), file=out)

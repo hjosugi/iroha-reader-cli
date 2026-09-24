@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,7 @@ def test_espeak_language_follows_the_text(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_missing_espeak_explains_how_to_install(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _c: None)
+    monkeypatch.setattr(sys, "platform", "linux")
     with pytest.raises(EngineNotReadyError, match="apt install espeak-ng"):
         engines.create(settings(requested="espeak"), japanese=True)
 

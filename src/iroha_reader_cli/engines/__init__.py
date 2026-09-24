@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import EngineNotReadyError, ReaderError
-from . import openjtalk, piper, voicevox
+from . import espeak, openjtalk, piper, voicevox
 from .base import Engine, LocalEngine
 from .edge import DEFAULT_VOICE_EN, DEFAULT_VOICE_JA, EdgeEngine
 from .espeak import EspeakEngine
@@ -216,11 +216,8 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
             min_interval_ms=settings.min_interval_ms,
         )
 
-    if shutil.which(EspeakEngine.command) is None:
-        raise EngineNotReadyError(
-            "espeak-ng is missing. Install it first (Debian/Ubuntu):\n"
-            "  sudo apt install espeak-ng"
-        )
+    if espeak.find_command() is None:
+        raise EngineNotReadyError(espeak.missing_message())
     return EspeakEngine(
         lang=settings.lang or ("ja" if japanese else "en"),
         wpm=settings.espeak_wpm(), pitch=settings.es_pitch, amplitude=settings.es_amp,

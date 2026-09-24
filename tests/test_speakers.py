@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from iroha_reader_cli import speakers
-from iroha_reader_cli.engines import EngineSettings, edge, openjtalk, voicevox
+from iroha_reader_cli.engines import EngineSettings, edge, espeak, openjtalk, voicevox
 from iroha_reader_cli.errors import EngineNotReadyError, MissingCommandError
 
 SPEAKERS = [{"name": "Zundamon", "styles": [{"id": 3, "name": "Normal"}]}]
@@ -73,6 +73,7 @@ def test_espeak_voices(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_espeak_without_espeak(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _c: None)
+    monkeypatch.setattr(espeak, "_WINDOWS_DIRS", ())
     with pytest.raises(MissingCommandError, match="espeak-ng is missing"):
         listed(EngineSettings(requested="espeak"))
 
