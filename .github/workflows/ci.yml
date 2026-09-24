@@ -108,9 +108,6 @@ jobs:
     runs-on: ubuntu-latest
     # The same old-glibc container the released binaries are built in.
     container: quay.io/pypa/manylinux_2_28_x86_64
-    env:
-      UV_PYTHON: /opt/python/cp313-cp313/bin/python3
-      UV_PYTHON_PREFERENCE: only-system
     steps:
       - uses: actions/checkout@v7
 
@@ -123,9 +120,20 @@ jobs:
       - name: Unpack the static libpython
         run: cd /opt/_internal && tar xf static-libs-for-embedding-only.tar.xz
 
-      - name: Build both
+      - name: Build with Nuitka
+        env:
+          UV_PYTHON: /opt/python/cp313-cp313/bin/python3
+          UV_PYTHON_PREFERENCE: only-system
+        run: ./scripts/build-nuitka.sh
+
+      # PyInstaller needs the shared libpython that only uv's own builds
+      # have, as in the release. The Nuitka environment is on the static
+      # one, so it has to go first.
+      - name: Build with PyInstaller
+        env:
+          UV_PYTHON_PREFERENCE: only-managed
         run: |
-          ./scripts/build-nuitka.sh
+          rm -rf .venv
           ./scripts/build-native.sh
 
       - uses: actions/upload-artifact@v7
