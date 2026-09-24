@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.14.0] - 2026-09-25
 
 ### Added
 
@@ -12,7 +12,9 @@ and this project uses [semantic versioning](https://semver.org/).
   release. The test suite runs on macOS and Windows in CI too.
 - A Nuitka build (`scripts/build-nuitka.sh`), released for Linux x86-64
   next to the PyInstaller one. CI compares their size and start-up
-  time on every change.
+  time on every change; on the build that became this release it was
+  13.8 MB against 15.6 MB and started in 226 ms against 285 ms (median
+  of 15 `--version` runs).
 - Missing-command errors name the install command for the system they
   run on: apt, Homebrew, or winget and the espeak-ng installer.
 - On Windows, espeak-ng is found where its installer puts it, which is
@@ -21,9 +23,11 @@ and this project uses [semantic versioning](https://semver.org/).
 ### Fixed
 
 - The reading room (`--serve`) works from the single-file binaries and
-  the AppImages. Its page was left out of the bundle, so every request
-  failed with a missing `index.html`. Each release now serves it in its
-  smoke test.
+  the AppImages. Its page was left out of the bundle, so in every
+  binary and AppImage released since `--serve` arrived in 0.10.0, up
+  to and including 0.13.0, every request failed with a missing
+  `index.html`. The wheel was not affected. Each release now serves
+  the page in its smoke test before it is published.
 - Text and Markdown files with Windows (CRLF) or old Mac (CR) line
   endings read exactly like the same file with plain newlines, instead
   of carrying stray carriage returns into the lines.
@@ -254,6 +258,7 @@ First public release.
 
 - Added SRT and WebVTT output: `--subs {lrc,srt,vtt}`.
 
+[0.14.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.14.0
 [0.13.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.13.0
 [0.12.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.12.0
 [0.11.0]: https://github.com/hjosugi/iroha-reader-cli/releases/tag/v0.11.0
