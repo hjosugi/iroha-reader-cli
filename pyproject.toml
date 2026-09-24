@@ -50,6 +50,13 @@ dev = [
 ]
 # Only needed for the single-file and AppImage builds.
 build = ["pyinstaller>=6.0"]
+# Only needed for the Nuitka build (scripts/build-nuitka.sh). zstandard
+# compresses the one-file payload; patchelf fixes up Linux libraries.
+nuitka = [
+  "nuitka>=4.2",
+  "zstandard>=0.23",
+  "patchelf>=0.17; sys_platform == 'linux'",
+]
 
 [tool.hatch.version]
 path = "src/iroha_reader_cli/__init__.py"

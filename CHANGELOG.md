@@ -3,6 +3,28 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Single-file binaries for macOS on Apple silicon and for Windows
+  x86-64, built and smoke tested on their own platforms in every
+  release. The test suite runs on macOS and Windows in CI too.
+- A Nuitka build (`scripts/build-nuitka.sh`), released for Linux x86-64
+  next to the PyInstaller one. CI compares their size and start-up
+  time on every change.
+- Missing-command errors name the install command for the system they
+  run on: apt, Homebrew, or winget and the espeak-ng installer.
+- On Windows, espeak-ng is found where its installer puts it, which is
+  not on `PATH`.
+
+### Fixed
+
+- The reading room (`--serve`) works from the single-file binaries and
+  the AppImages. Its page was left out of the bundle, so every request
+  failed with a missing `index.html`. Each release now serves it in its
+  smoke test.
+
 ## [0.13.0] - 2026-09-24
 
 ### Added

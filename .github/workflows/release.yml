@@ -70,22 +70,105 @@ jobs:
           name: binaries-${{ matrix.arch }}
           path: dist
 
+      - uses: ./.github/actions/audio-tools
+
       - name: Read a document with both of them
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
           chmod +x dist/*
-          ./dist/iroha-reader-cli-linux-${{ matrix.arch }} \
-            examples/sample_en.txt -o /tmp/plain --subs lrc,srt
-          test -s /tmp/plain/sample_en.mp3
-          test -s /tmp/plain/sample_en.srt
+          ./scripts/smoke-test.sh ./dist/iroha-reader-cli-linux-${{ matrix.arch }}
           ./dist/iroha-reader-cli-${{ matrix.arch }}.AppImage \
             --appimage-extract-and-run examples/sample_en.txt -o /tmp/appimage
           test -s /tmp/appimage/sample_en.mp3
-          cat /tmp/plain/sample_en.lrc
+
+  other-platforms:
+    name: ${{ matrix.name }} binary
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64, runner: macos-15, ext: "" }
+          - { name: windows-x86_64, runner: windows-2025, ext: ".exe" }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Build the binary
+        shell: bash
+        run: ./scripts/build-native.sh
+
+      - name: Name the binary after its platform
+        shell: bash
+        run: mv "dist/iroha-reader-cli${{ matrix.ext }}" "dist/iroha-reader-cli-${{ matrix.name }}${{ matrix.ext }}"
+
+      # espeak-ng stays off PATH on Windows, as its installer leaves it.
+      - uses: ./.github/actions/audio-tools
+
+      - name: Read a document and serve the reading room
+        shell: bash
+        run: ./scripts/smoke-test.sh "dist/iroha-reader-cli-${{ matrix.name }}${{ matrix.ext }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaries-${{ matrix.name }}
+          path: dist/iroha-reader-cli-${{ matrix.name }}${{ matrix.ext }}
+          if-no-files-found: error
+
+  nuitka:
+    name: x86_64 Nuitka binary
+    runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    env:
+      UV_PYTHON: /opt/python/cp313-cp313/bin/python3
+      UV_PYTHON_PREFERENCE: only-system
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Build the binary
+        run: ./scripts/build-nuitka.sh
+
+      - name: Report the glibc floor
+        run: |
+          objdump -T dist/iroha-reader-cli-nuitka \
+            | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -3
+
+      - name: Name the binary after its architecture
+        run: mv dist/iroha-reader-cli-nuitka dist/iroha-reader-cli-linux-x86_64-nuitka
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaries-nuitka
+          path: dist/iroha-reader-cli-linux-x86_64-nuitka
+          if-no-files-found: error
+
+  nuitka-smoke:
+    name: x86_64 Nuitka smoke test
+    needs: nuitka
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: binaries-nuitka
+          path: dist
+
+      - uses: ./.github/actions/audio-tools
+
+      - name: Read a document and serve the reading room
+        run: |
+          chmod +x dist/*
+          ./scripts/smoke-test.sh dist/iroha-reader-cli-linux-x86_64-nuitka
 
   publish:
-    needs: smoke
+    needs: [smoke, other-platforms, nuitka-smoke]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

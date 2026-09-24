@@ -36,6 +36,30 @@ jobs:
       - name: Run the tests
         run: uv run --no-sync pytest -v
 
+  platforms:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/audio-tools
+        with:
+          espeak-on-path: "true"
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --python 3.13
+
+      - name: Run the tests
+        run: uv run --no-sync pytest -v
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -54,8 +78,12 @@ jobs:
         run: uv run --no-sync mypy
 
   build:
-    name: build the single file binary
-    runs-on: ubuntu-latest
+    name: build the single file binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-2025]
     steps:
       - uses: actions/checkout@v7
 
@@ -64,13 +92,63 @@ jobs:
           enable-cache: true
 
       - name: Build
+        shell: bash
         run: ./scripts/build-native.sh
 
-      - name: It runs and reads a document
+      # On Windows espeak-ng stays off PATH, as its installer leaves it,
+      # so this also proves the binary finds it on its own.
+      - uses: ./.github/actions/audio-tools
+
+      - name: It reads a document and serves the reading room
+        shell: bash
+        run: ./scripts/smoke-test.sh dist/iroha-reader-cli
+
+  nuitka:
+    name: build with Nuitka and compare
+    runs-on: ubuntu-latest
+    # The same old-glibc container the released binaries are built in.
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    env:
+      UV_PYTHON: /opt/python/cp313-cp313/bin/python3
+      UV_PYTHON_PREFERENCE: only-system
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Build both
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng poppler-utils
-          ./dist/iroha-reader-cli examples/sample_en.txt -o /tmp/out --subs lrc,srt
-          test -s /tmp/out/sample_en.mp3
-          test -s /tmp/out/sample_en.lrc
-          cat /tmp/out/sample_en.lrc
+          ./scripts/build-nuitka.sh
+          ./scripts/build-native.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuitka-and-pyinstaller
+          path: |
+            dist/iroha-reader-cli
+            dist/iroha-reader-cli-nuitka
+          if-no-files-found: error
+
+  nuitka-compare:
+    name: run and measure the Nuitka build
+    needs: nuitka
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: nuitka-and-pyinstaller
+          path: dist
+
+      - uses: ./.github/actions/audio-tools
+
+      - name: It reads a document and serves the reading room
+        run: |
+          chmod +x dist/*
+          ./scripts/smoke-test.sh dist/iroha-reader-cli-nuitka
+
+      - name: Size and start-up time against PyInstaller
+        run: ./scripts/compare-builds.sh dist/iroha-reader-cli dist/iroha-reader-cli-nuitka | tee -a "$GITHUB_STEP_SUMMARY"

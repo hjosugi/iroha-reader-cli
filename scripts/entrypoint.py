@@ -1,6 +1,6 @@
-"""Entry point for the PyInstaller build.
+"""Entry point for the PyInstaller and Nuitka builds.
 
-PyInstaller runs this file as a plain script, so the import has to be
+Both run this file as a plain script, so the import has to be
 absolute. `python -m iroha_reader_cli` uses __main__.py instead.
 """
 

@@ -108,8 +108,10 @@ free, open source, and offline.
 
 ## Install
 
-Requirements: Linux, Python 3.11+, and `ffmpeg`. `poppler-utils` is
-worth adding if you read PDFs.
+Requirements: Linux, macOS, or Windows, Python 3.11+, and `ffmpeg`.
+`poppler-utils` is worth adding if you read PDFs. The commands below
+are for Debian and Ubuntu; [Native builds](#native-builds) has the
+macOS and Windows equivalents.
 
 ```sh
 # the tool itself (installs both `iroha-reader-cli` and the short `irh`)
@@ -509,13 +511,26 @@ file is something you can catch.
 A single executable, with Python bundled in:
 
 ```sh
-./scripts/build-native.sh                # -> dist/iroha-reader-cli
+./scripts/build-native.sh                # -> dist/iroha-reader-cli (.exe on Windows)
 ./scripts/build-appimage.sh              # -> dist/iroha-reader-cli-x86_64.AppImage
 ARCH=aarch64 ./scripts/build-appimage.sh # on an arm64 machine
+./scripts/build-nuitka.sh                # -> dist/iroha-reader-cli-nuitka
 ```
 
 Every [release](https://github.com/hjosugi/iroha-reader-cli/releases)
-carries both, for x86-64 and arm64.
+carries:
+
+| file | for |
+| --- | --- |
+| `iroha-reader-cli-linux-x86_64`, `iroha-reader-cli-linux-aarch64` | Linux |
+| `iroha-reader-cli-x86_64.AppImage`, `iroha-reader-cli-aarch64.AppImage` | Linux, as an AppImage |
+| `iroha-reader-cli-linux-x86_64-nuitka` | Linux, built with Nuitka instead of PyInstaller |
+| `iroha-reader-cli-macos-arm64` | macOS on Apple silicon |
+| `iroha-reader-cli-windows-x86_64.exe` | Windows |
+
+Each one is smoke tested on its own platform before the release is
+published: it reads a document into audio plus subtitles and serves
+the reading room.
 
 ```sh
 chmod +x iroha-reader-cli-x86_64.AppImage
@@ -526,10 +541,25 @@ chmod +x iroha-reader-cli-x86_64.AppImage
 ```
 
 The binary still calls `ffmpeg` at run time, plus `espeak-ng`,
-`open_jtalk`, or `piper` for the engine you use. The released ones are
-built inside `manylinux_2_28`, so they need only glibc 2.14: Ubuntu
-18.04, Debian 10, and RHEL 8 onwards. Building them yourself puts the
-floor at your own machine's glibc.
+`open_jtalk`, or `piper` for the engine you use. On macOS that is
+`brew install ffmpeg espeak-ng`. On Windows, `winget install
+Gyan.FFmpeg` and `espeak-ng.msi` from the
+[espeak-ng releases](https://github.com/espeak-ng/espeak-ng/releases);
+the tool finds espeak-ng where that installer puts it, so it does not
+have to be on `PATH`. The macOS and Windows binaries are not signed
+with a developer certificate: macOS refuses a downloaded one until
+you run `xattr -d com.apple.quarantine iroha-reader-cli-macos-arm64`,
+and Windows SmartScreen may ask you to *Run anyway*.
+
+The Linux ones are built inside `manylinux_2_28`, so they need only
+glibc 2.14: Ubuntu 18.04, Debian 10, and RHEL 8 onwards. Building them
+yourself puts the floor at your own machine's glibc.
+
+The Nuitka build compiles the code to C instead of bundling it as
+bytecode. Both are single files that unpack themselves on each start;
+CI measures the two against each other on every change (size and
+start-up time are in the run summary of the *build with Nuitka and
+compare* job). The PyInstaller build stays the default.
 
 ## Development
 

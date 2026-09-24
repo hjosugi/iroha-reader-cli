@@ -1,0 +1,39 @@
+name: Install ffmpeg and espeak-ng
+description: >
+  The two external commands the tool needs to read a document, from each
+  system's usual source.
+inputs:
+  espeak-on-path:
+    description: >
+      Put espeak-ng on PATH on Windows. Its installer does not, and the
+      tool finds it anyway; the test suite looks it up on PATH.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng poppler-utils
+
+    - name: macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install ffmpeg espeak-ng poppler
+
+    - name: Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        ESPEAK_ON_PATH: ${{ inputs.espeak-on-path }}
+      run: |
+        choco install ffmpeg -y --no-progress
+        $msi = Join-Path $env:RUNNER_TEMP "espeak-ng.msi"
+        Invoke-WebRequest -Uri "https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi" -OutFile $msi
+        $install = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/qn", "/norestart" -Wait -PassThru
+        if ($install.ExitCode -ne 0) { throw "espeak-ng install failed: $($install.ExitCode)" }
+        $espeak = Join-Path $env:ProgramFiles "eSpeak NG"
+        if (-not (Test-Path (Join-Path $espeak "espeak-ng.exe"))) { throw "espeak-ng.exe not found in $espeak" }
+        if ($env:ESPEAK_ON_PATH -eq "true") { $espeak | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
