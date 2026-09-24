@@ -20,15 +20,23 @@ SUPPORTED_SUFFIXES = (*MARKDOWN_SUFFIXES, ".pdf", ".epub", *TEXT_SUFFIXES)
 
 
 def read_text_file(path: Path) -> str:
-    """Read a text file. utf-8 first, then cp932 for older Japanese files."""
+    """Read a text file. utf-8 first, then cp932 for older Japanese files.
+
+    Windows line endings become plain newlines, so a file saved by
+    Notepad reads exactly like the same file saved anywhere else.
+    """
     data = path.read_bytes()
     for encoding in ("utf-8-sig", "utf-8", "cp932"):
         try:
-            return data.decode(encoding)
+            return _unix_newlines(data.decode(encoding))
         except UnicodeDecodeError:
             continue
     # Last resort: keep going with replacement characters.
-    return data.decode("utf-8", errors="replace")
+    return _unix_newlines(data.decode("utf-8", errors="replace"))
+
+
+def _unix_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")

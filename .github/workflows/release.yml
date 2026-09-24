@@ -131,6 +131,11 @@ jobs:
         with:
           enable-cache: true
 
+      # manylinux ships its Pythons without a shared libpython; Nuitka links
+      # the static one, which the image keeps packed away for this purpose.
+      - name: Unpack the static libpython
+        run: cd /opt/_internal && tar xf static-libs-for-embedding-only.tar.xz
+
       - name: Build the binary
         run: ./scripts/build-nuitka.sh
 

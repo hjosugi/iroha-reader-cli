@@ -24,6 +24,9 @@ and this project uses [semantic versioning](https://semver.org/).
   the AppImages. Its page was left out of the bundle, so every request
   failed with a missing `index.html`. Each release now serves it in its
   smoke test.
+- Text and Markdown files with Windows (CRLF) or old Mac (CR) line
+  endings read exactly like the same file with plain newlines, instead
+  of carrying stray carriage returns into the lines.
 
 ## [0.13.0] - 2026-09-24
 

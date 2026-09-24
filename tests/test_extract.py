@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -83,11 +84,23 @@ def test_extract_reports_a_missing_file(tmp_path: Path) -> None:
 
 def test_extract_reads_markdown_and_text(tmp_path: Path) -> None:
     md = tmp_path / "a.md"
-    md.write_text("# Head\n\nBody.\n", encoding="utf-8")
+    md.write_bytes(b"# Head\n\nBody.\n")
     assert "Body." in extract(md)
     txt = tmp_path / "a.txt"
-    txt.write_text("Plain.\n", encoding="utf-8")
+    txt.write_bytes(b"Plain.\n")
     assert extract(txt) == "Plain.\n"
+
+
+def test_windows_line_endings_read_like_unix_ones(tmp_path: Path) -> None:
+    unix = tmp_path / "unix.md"
+    unix.write_bytes("# 見出し\n\n本文です。\n\n- 項目\n".encode())
+    windows = tmp_path / "windows.md"
+    windows.write_bytes(unix.read_bytes().replace(b"\n", b"\r\n"))
+    assert extract(windows) == extract(unix)
+    assert "\r" not in extract(windows)
+    old_mac = tmp_path / "old.txt"
+    old_mac.write_bytes("一行目\r二行目\r".encode("cp932"))
+    assert extract(old_mac) == "一行目\n二行目\n"
 
 
 def sample_pdf(tmp_path: Path) -> Path:
@@ -143,11 +156,17 @@ def test_auto_falls_back_to_pypdf(tmp_path: Path,
     assert "Page one line one." in extract_pdf(sample_pdf(tmp_path))
 
 
+@pytest.mark.parametrize(("platform", "install"), [
+    ("linux", "apt install poppler-utils"),
+    ("darwin", "brew install poppler"),
+    ("win32", "winget install"),
+])
 def test_asking_for_a_missing_pdftotext_says_how_to_get_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, platform: str, install: str
 ) -> None:
     monkeypatch.setattr(shutil, "which", lambda _c: None)
-    with pytest.raises(MissingCommandError, match="poppler-utils"):
+    monkeypatch.setattr(sys, "platform", platform)
+    with pytest.raises(MissingCommandError, match=install):
         extract_pdf(sample_pdf(tmp_path), backend="pdftotext")
 
 

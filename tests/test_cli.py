@@ -76,7 +76,8 @@ def test_the_config_alias_for_dict(tmp_path: Path) -> None:
 
 def test_config_paths_become_path_objects(tmp_path: Path) -> None:
     config = tmp_path / "c.toml"
-    config.write_text(f'outdir = "{tmp_path}/out"\n', encoding="utf-8")
+    # A TOML literal string, so a Windows path's backslashes stay as they are.
+    config.write_text(f"outdir = '{tmp_path / 'out'}'\n", encoding="utf-8")
     options = cli.build_options(cli.parse_args(["a.md", "--config", str(config)]))
     assert options.outdir == tmp_path / "out"
 
