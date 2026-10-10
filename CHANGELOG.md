@@ -3,6 +3,12 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [0.14.2] - 2026-10-11
+
+### Changed
+
+- `pypdf` moves to 6.20.0.
+
 ## [0.14.1] - 2026-10-11
 
 ### Changed
