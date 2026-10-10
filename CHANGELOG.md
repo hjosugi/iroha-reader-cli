@@ -3,6 +3,27 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project uses [semantic versioning](https://semver.org/).
 
+## [0.14.1] - 2026-10-11
+
+### Changed
+
+- `--help` opens with what the tool does and closes with a handful of
+  worked examples, so the common ways to call it are visible without
+  reading every option.
+- Internal clean-up, with no change in behaviour. The engine factory
+  and the speaker listing are tables of small builders rather than long
+  `if` chains, the subtitle writers share one way to read word times,
+  the page range has one name instead of six copies, and the server no
+  longer keeps a private copy of `dataclasses.replace`.
+
+### Fixed
+
+- `pypdf` moves to 6.19.0, which clears the eight advisories GitHub
+  reported against the old one: long run times or large memory use on
+  crafted pdf files.
+- `multidict` moves to 6.9.1, clearing a reference-leak advisory in the
+  copy that comes in through `edge-tts`.
+
 ## [0.14.0] - 2026-09-25
 
 ### Added
