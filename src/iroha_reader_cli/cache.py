@@ -164,6 +164,12 @@ class CachedEngine(Engine):
     def detail(self) -> str:
         return self.inner.detail
 
+    def signature(self) -> dict[str, str]:
+        # The cache key describes the sound, and the wrapped engine is
+        # the only thing that decides it. `reused` and `repeats` are
+        # bookkeeping, so they deliberately stay out.
+        return self.inner.signature()
+
     def synth_all(self, lines: Sequence[str], outdir: str,
                   reporter: Reporter) -> Segments:
         signature = self.inner.signature()

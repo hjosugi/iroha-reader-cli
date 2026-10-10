@@ -40,9 +40,10 @@ class Engine(abc.ABC):
     ext: str
 
     #: Attributes that change speed of work, not the sound of it.
+    #: A wrapper that keeps bookkeeping of its own overrides signature()
+    #: instead of adding those attributes here.
     NON_AUDIO_FIELDS: ClassVar[frozenset[str]] = frozenset(
-        {"jobs", "concurrency", "timeout", "name", "ext",
-         "inner", "cache", "reused", "repeats"}
+        {"jobs", "concurrency", "timeout"}
     )
 
     @property

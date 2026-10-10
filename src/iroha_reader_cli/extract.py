@@ -18,6 +18,9 @@ MARKDOWN_SUFFIXES = (".md", ".markdown")
 TEXT_SUFFIXES = (".txt", ".text")
 SUPPORTED_SUFFIXES = (*MARKDOWN_SUFFIXES, ".pdf", ".epub", *TEXT_SUFFIXES)
 
+#: A 1-based page range. An end of None means "to the last page".
+PageRange = tuple[int, int | None]
+
 
 def read_text_file(path: Path) -> str:
     """Read a text file. utf-8 first, then cp932 for older Japanese files.
@@ -110,7 +113,7 @@ PDF_BACKENDS = ("auto", "pdftotext", "pypdf")
 PDFTOTEXT = "pdftotext"
 
 
-def _pdf_with_pypdf(path: Path, pages: tuple[int, int | None] | None) -> str:
+def _pdf_with_pypdf(path: Path, pages: PageRange | None) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as err:  # pragma: no cover - dependency is required
@@ -129,7 +132,7 @@ def _pdf_with_pypdf(path: Path, pages: tuple[int, int | None] | None) -> str:
     return "\n".join(page.extract_text() or "" for page in selected)
 
 
-def _pdf_with_pdftotext(path: Path, pages: tuple[int, int | None] | None) -> str:
+def _pdf_with_pdftotext(path: Path, pages: PageRange | None) -> str:
     argv = [PDFTOTEXT]
     if pages is not None:
         start, end = pages
@@ -142,7 +145,7 @@ def _pdf_with_pdftotext(path: Path, pages: tuple[int, int | None] | None) -> str
     return run(argv).stdout.decode("utf-8", "replace")
 
 
-def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None,
+def extract_pdf(path: Path, pages: PageRange | None = None,
                 backend: str = "auto") -> str:
     """Extract text from a pdf.
 
@@ -167,7 +170,7 @@ def extract_pdf(path: Path, pages: tuple[int, int | None] | None = None,
     return _pdf_with_pypdf(path, pages)
 
 
-def parse_page_range(spec: str) -> tuple[int, int | None]:
+def parse_page_range(spec: str) -> PageRange:
     """Parse a page range like 3-10, 5, or 3-."""
     text = spec.strip()
     try:
@@ -189,7 +192,7 @@ INPUT_TYPES = ("md", "txt", "pdf", "epub")
 
 
 def extract_blocks(path: Path, keep_code: bool = False,
-                   pages: tuple[int, int | None] | None = None,
+                   pages: PageRange | None = None,
                    pdf_backend: str = "auto") -> list[Block]:
     """Extract a document as blocks, keeping markdown heading levels.
 
@@ -207,7 +210,7 @@ def extract_blocks(path: Path, keep_code: bool = False,
 
 
 def extract(path: Path, keep_code: bool = False,
-            pages: tuple[int, int | None] | None = None,
+            pages: PageRange | None = None,
             pdf_backend: str = "auto") -> str:
     """Extract plain text, picking the reader from the file suffix."""
     if not path.exists():

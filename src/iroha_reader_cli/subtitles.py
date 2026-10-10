@@ -60,6 +60,13 @@ def _clock(sec: float, ms_sep: str) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}{ms_sep}{millis:03d}"
 
 
+def _words_at(timeline: Timeline, index: int) -> Sequence[Word]:
+    """Word times of one line, or empty when the engine did not report them."""
+    if timeline.words is None:
+        return ()
+    return timeline.words[index]
+
+
 def build_lrc(lines: Sequence[str], timeline: Timeline, title: str = "") -> str:
     """Return a full LRC file.
 
@@ -74,7 +81,7 @@ def build_lrc(lines: Sequence[str], timeline: Timeline, title: str = "") -> str:
         "",
     ]
     for index, (text, start) in enumerate(zip(lines, timeline.starts, strict=False)):
-        words = timeline.words[index] if timeline.words is not None else ()
+        words = _words_at(timeline, index)
         body = _tag_words(text, words, lambda sec: f"<{_mmss(sec)}>") if words else text
         out.append(f"{_lrc_stamp(start)}{body}")
     return "\n".join(out) + "\n"
@@ -99,7 +106,7 @@ def build_vtt(lines: Sequence[str], timeline: Timeline, _title: str = "") -> str
     out: list[str] = ["WEBVTT", ""]
     cues = zip(lines, timeline.starts, timeline.durations, strict=False)
     for index, (text, start, duration) in enumerate(cues):
-        words = timeline.words[index] if timeline.words is not None else ()
+        words = _words_at(timeline, index)
         # WebVTT reads the same inline timestamps as karaoke cues.
         body = (_tag_words(text, words, lambda sec: f"<{_clock(sec, '.')}>")
                 if words else text)

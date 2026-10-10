@@ -44,7 +44,7 @@ class ConvertOptions:
     subtitle_formats: tuple[str, ...] = subtitles.DEFAULT_FORMATS
     gap_ms: int = 200
     max_chars: int = segment.DEFAULT_MAX_CHARS
-    pages: tuple[int, int | None] | None = None
+    pages: extract.PageRange | None = None
     pdf_backend: str = "auto"
     keep_code: bool = False
     write_text: bool = False
@@ -263,6 +263,16 @@ def _render(lines: Sequence[Line], source: Path, outdir: Path, stem: str,
     )
 
 
+def _prepare(options: ConvertOptions, settings: EngineSettings | None,
+             reporter: Reporter | None) -> tuple[EngineSettings, Reporter]:
+    """Validate the options and fill in the defaults for library callers."""
+    options.validate()
+    return (
+        settings if settings is not None else EngineSettings(),
+        reporter if reporter is not None else Reporter(quiet=True),
+    )
+
+
 def convert(path: Path, options: ConvertOptions,
             settings: EngineSettings | None = None,
             reporter: Reporter | None = None) -> ConvertResult:
@@ -270,9 +280,7 @@ def convert(path: Path, options: ConvertOptions,
 
     Splitting is ignored here; use convert_all() for that.
     """
-    options.validate()
-    settings = settings if settings is not None else EngineSettings()
-    reporter = reporter if reporter is not None else Reporter(quiet=True)
+    settings, reporter = _prepare(options, settings, reporter)
     lines, outdir, stem, engine = _open(path, options, settings, reporter)
     result = _render(lines, path, outdir, stem, options, engine, reporter)
     _prune_cache(options, reporter)
@@ -286,9 +294,7 @@ def convert_all(path: Path, options: ConvertOptions,
 
     Without splitting this is convert() in a list of one.
     """
-    options.validate()
-    settings = settings if settings is not None else EngineSettings()
-    reporter = reporter if reporter is not None else Reporter(quiet=True)
+    settings, reporter = _prepare(options, settings, reporter)
     lines, outdir, stem, engine = _open(path, options, settings, reporter)
 
     if options.split_level is None:

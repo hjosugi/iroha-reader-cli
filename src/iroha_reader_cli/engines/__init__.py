@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -168,54 +169,61 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
             "have to guess, and guessed timestamps are worse than none."
         )
 
-    if name == "openjtalk":
-        voice = openjtalk.resolve_voice(settings.ojt_voice)
-        ready = (shutil.which(OpenJTalkEngine.command) is not None
-                 and Path(settings.ojt_dict).is_dir())
-        if not ready:
-            raise EngineNotReadyError(f"open_jtalk is not ready. {openjtalk.INSTALL_HINT}")
-        if voice is None:
-            known = ", ".join(path.stem for path in openjtalk.installed_voices())
-            raise EngineNotReadyError(
-                f"no such open_jtalk voice: {settings.ojt_voice}. "
-                + (f"Installed: {known}" if known
-                   else "No .htsvoice file found. " + openjtalk.INSTALL_HINT)
-            )
-        return OpenJTalkEngine(
-            settings.ojt_dict, voice, speed=settings.speed,
-            halftone=settings.ojt_halftone, volume_db=settings.ojt_volume_db,
-            jobs=settings.jobs,
+    return _BUILDERS.get(name, _build_espeak)(settings, japanese)
+
+
+def _build_openjtalk(settings: EngineSettings, _japanese: bool) -> Engine:
+    voice = openjtalk.resolve_voice(settings.ojt_voice)
+    ready = (shutil.which(OpenJTalkEngine.command) is not None
+             and Path(settings.ojt_dict).is_dir())
+    if not ready:
+        raise EngineNotReadyError(f"open_jtalk is not ready. {openjtalk.INSTALL_HINT}")
+    if voice is None:
+        known = ", ".join(path.stem for path in openjtalk.installed_voices())
+        raise EngineNotReadyError(
+            f"no such open_jtalk voice: {settings.ojt_voice}. "
+            + (f"Installed: {known}" if known
+               else "No .htsvoice file found. " + openjtalk.INSTALL_HINT)
         )
+    return OpenJTalkEngine(
+        settings.ojt_dict, voice, speed=settings.speed,
+        halftone=settings.ojt_halftone, volume_db=settings.ojt_volume_db,
+        jobs=settings.jobs,
+    )
 
-    if name == "piper":
-        data_dir = Path(settings.piper_data)
-        model = piper.resolve_model(settings.piper_model, data_dir)
-        if shutil.which(PiperEngine.command) is None or model is None:
-            raise EngineNotReadyError(
-                "piper is not ready. "
-                + piper.install_hint(settings.piper_model, data_dir)
-            )
-        return PiperEngine(model, length_scale=settings.piper_length_scale(),
-                           jobs=settings.jobs)
 
-    if name == "voicevox":
-        return VoicevoxEngine(
-            url=settings.voicevox_url,
-            speaker=voicevox.resolve_speaker(str(settings.speaker), settings.voicevox_url),
-            speed=settings.voicevox_speed(), pitch=settings.vv_pitch,
-            intonation=settings.vv_intonation, volume=settings.vv_volume,
-            jobs=settings.jobs,
+def _build_piper(settings: EngineSettings, _japanese: bool) -> Engine:
+    data_dir = Path(settings.piper_data)
+    model = piper.resolve_model(settings.piper_model, data_dir)
+    if shutil.which(PiperEngine.command) is None or model is None:
+        raise EngineNotReadyError(
+            "piper is not ready. " + piper.install_hint(settings.piper_model, data_dir)
         )
+    return PiperEngine(model, length_scale=settings.piper_length_scale(),
+                       jobs=settings.jobs)
 
-    if name == "edge":
-        voice = settings.voice or (DEFAULT_VOICE_JA if japanese else DEFAULT_VOICE_EN)
-        return EdgeEngine(
-            voice, rate=settings.edge_rate(), pitch=settings.edge_pitch,
-            volume=settings.edge_volume, concurrency=settings.concurrency,
-            word_timing=settings.word_timing,
-            min_interval_ms=settings.min_interval_ms,
-        )
 
+def _build_voicevox(settings: EngineSettings, _japanese: bool) -> Engine:
+    return VoicevoxEngine(
+        url=settings.voicevox_url,
+        speaker=voicevox.resolve_speaker(str(settings.speaker), settings.voicevox_url),
+        speed=settings.voicevox_speed(), pitch=settings.vv_pitch,
+        intonation=settings.vv_intonation, volume=settings.vv_volume,
+        jobs=settings.jobs,
+    )
+
+
+def _build_edge(settings: EngineSettings, japanese: bool) -> Engine:
+    voice = settings.voice or (DEFAULT_VOICE_JA if japanese else DEFAULT_VOICE_EN)
+    return EdgeEngine(
+        voice, rate=settings.edge_rate(), pitch=settings.edge_pitch,
+        volume=settings.edge_volume, concurrency=settings.concurrency,
+        word_timing=settings.word_timing,
+        min_interval_ms=settings.min_interval_ms,
+    )
+
+
+def _build_espeak(settings: EngineSettings, japanese: bool) -> Engine:
     if espeak.find_command() is None:
         raise EngineNotReadyError(espeak.missing_message())
     return EspeakEngine(
@@ -223,3 +231,13 @@ def create(settings: EngineSettings, japanese: bool) -> Engine:
         wpm=settings.espeak_wpm(), pitch=settings.es_pitch, amplitude=settings.es_amp,
         jobs=settings.jobs,
     )
+
+
+#: One builder per concrete engine name. espeak is the fallback.
+_BUILDERS: dict[str, Callable[[EngineSettings, bool], Engine]] = {
+    "openjtalk": _build_openjtalk,
+    "piper": _build_piper,
+    "voicevox": _build_voicevox,
+    "edge": _build_edge,
+    "espeak": _build_espeak,
+}

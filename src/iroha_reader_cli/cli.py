@@ -44,6 +44,29 @@ PROG = "iroha-reader-cli"
 #: The same tool, for people who type it a lot.
 SHORT_PROG = "irh"
 
+DESCRIPTION = """\
+Read documents out loud and get the subtitles for free.
+
+Takes .md / .epub / .pdf / .txt (or - for standard input) and writes one
+audio file plus timed text -- .lrc by default, .srt and .vtt on request --
+with chapters taken from the headings. Each line is synthesized on its own
+and measured, so the subtitles stay in step with the audio exactly, with no
+speech recognition and nothing to drift."""
+
+EPILOG = """\
+examples:
+  irh notes.md                       notes.md -> notes.mp3 + notes.lrc
+  irh --subs lrc,srt paper.pdf       also write paper.srt
+  irh --split-by-heading 1 book.epub
+                                     one audio file per chapter
+  cat notes.md | irh --type md -     read from standard input
+  irh --serve                        drop a document on a local page
+  irh --list-speakers                see the voices this machine can use
+
+Settings can also live in a config file (see --config); the command line
+wins over it. Run `irh --help` to see every option.
+"""
+
 
 def prog_name() -> str:
     """Whichever of our two names was used to start this."""
@@ -82,7 +105,9 @@ class _CommaAppend(argparse.Action):
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog=prog_name(),
-        description="Convert md / epub / pdf / txt into audio plus synced subtitles.",
+        description=DESCRIPTION,
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("inputs", nargs="*", type=Path,
                    help=f"input files ({' '.join(extract.SUPPORTED_SUFFIXES)}), "
@@ -367,6 +392,23 @@ def _print_json(results: Sequence[ConvertResult]) -> None:
                      ensure_ascii=False, indent=2))
 
 
+def _run_stdin(args: argparse.Namespace, options: ConvertOptions,
+               settings: EngineSettings, reporter: Reporter) -> int:
+    """Convert the document that is piped in, after spooling it to a file."""
+    with stdin_source(args.input_type) as path:
+        # There is no input file to sit next to, or to be named after.
+        options.outdir = options.outdir or Path.cwd()
+        options.name = options.name or STDIN_NAME
+        options.source_label = "(stdin)"
+        if args.dry_run:
+            return _dry_run([path], options, reporter, args.as_json)
+        audio.check_tools()
+        results = convert_all(path, options, settings, reporter)
+        if args.as_json:
+            _print_json(results)
+    return EXIT_OK
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     """Run the command line and return an exit code."""
     args = parse_args(argv)
@@ -402,18 +444,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     options.validate()
 
     if _reading_stdin(args.inputs):
-        with stdin_source(args.input_type) as path:
-            # There is no input file to sit next to, or to be named after.
-            options.outdir = options.outdir or Path.cwd()
-            options.name = options.name or STDIN_NAME
-            options.source_label = "(stdin)"
-            if args.dry_run:
-                return _dry_run([path], options, reporter, args.as_json)
-            audio.check_tools()
-            results = convert_all(path, options, settings, reporter)
-            if args.as_json:
-                _print_json(results)
-        return EXIT_OK
+        return _run_stdin(args, options, settings, reporter)
 
     if args.dry_run:
         return _dry_run(args.inputs, options, reporter, args.as_json)
@@ -421,7 +452,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     _warn_about_collisions(args.inputs, options, reporter)
 
     audio.check_tools()
-    results = []
+    results: list[ConvertResult] = []
     for path in args.inputs:
         results.extend(convert_all(path, options, settings, reporter))
     if args.as_json:

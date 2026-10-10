@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import threading
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -98,10 +98,10 @@ class Reader:
         source = directory / f"input.{kind}"
         source.write_bytes(data)
 
-        options = _replace(self.options, outdir=directory, name=stem,
-                           source_label=name)
-        settings = _replace(self.settings, requested=engine,
-                            word_timing=word_timing)
+        options = replace(self.options, outdir=directory, name=stem,
+                          source_label=name)
+        settings = replace(self.settings, requested=engine,
+                           word_timing=word_timing)
         result = convert(source, options, settings, self.reporter)
 
         job = Job(job_id, directory, result)
@@ -118,13 +118,6 @@ class Reader:
         allowed = {path.name: path for path in
                    (job.result.audio, *job.result.subtitle_files)}
         return allowed.get(name)
-
-
-def _replace(source: Any, **changes: Any) -> Any:
-    """A shallow copy with fields replaced (the dataclasses use slots)."""
-    import dataclasses
-
-    return dataclasses.replace(source, **changes)
 
 
 class _Handler(BaseHTTPRequestHandler):

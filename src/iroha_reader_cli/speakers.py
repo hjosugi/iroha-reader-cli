@@ -26,16 +26,7 @@ def list_speakers(settings: EngineSettings, out: TextIO | None = None) -> None:
         except EngineNotReadyError:
             name = engines.choose(settings, japanese=True)
 
-    if name == "voicevox":
-        _print_voicevox(settings, stream)
-    elif name == "openjtalk":
-        _print_openjtalk(stream)
-    elif name == "piper":
-        _print_piper(settings, stream)
-    elif name == "edge":
-        _print_edge(settings, stream)
-    else:
-        _print_espeak(settings, stream)
+    _PRINTERS.get(name, _print_espeak)(settings, stream)
 
 
 def _print_voicevox(settings: EngineSettings, out: TextIO) -> None:
@@ -47,7 +38,7 @@ def _print_voicevox(settings: EngineSettings, out: TextIO) -> None:
                   f'({style.get("name", "?")})', file=out)
 
 
-def _print_openjtalk(out: TextIO) -> None:
+def _print_openjtalk(_settings: EngineSettings, out: TextIO) -> None:
     print("# open_jtalk voices (use the name or the path with --ojt-voice)", file=out)
     voices = openjtalk.installed_voices()
     for path in voices:
@@ -89,3 +80,13 @@ def _print_espeak(settings: EngineSettings, out: TextIO) -> None:
     argv.append(f"--voices={settings.lang}" if settings.lang else "--voices")
     print("# espeak voices (use the language code with --lang)", file=out)
     print(run(argv).stdout.decode("utf-8", "replace").rstrip(), file=out)
+
+
+#: One printer per engine name. espeak is the fallback.
+_PRINTERS = {
+    "voicevox": _print_voicevox,
+    "openjtalk": _print_openjtalk,
+    "piper": _print_piper,
+    "edge": _print_edge,
+    "espeak": _print_espeak,
+}
